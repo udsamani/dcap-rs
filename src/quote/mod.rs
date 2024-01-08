@@ -4,6 +4,7 @@ mod quote {
     // high level sgx quote structure
     // [48 - header] [384 - isv enclave report] [4 - quote signature length] [var - quote signature] 
 
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     struct SgxQuote {
         header: SgxQuoteHeader,                 // [48 bytes]
                                                 // Header of Quote data structure. This field is transparent (the user knows
@@ -16,11 +17,12 @@ mod quote {
                                                 // protection if required.
         signature_len: u32,                     // [4 bytes]
                                                 // Size of the Quote Signature Data structure in bytes.
-        signature: Vec<u8>,                     // [variable bytes]
+        signature: *mut u8,                     // [variable bytes]
                                                 // Variable-length data containing the signature and supporting data. 
                                                 // E.g. ECDSA 256-bit Quote Signature Data Structure (SgxEnclaveReport)
     }
 
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     struct SgxQuoteHeader {
         version: u16,           // [2 bytes]
                                 // version of the quote data structure - 3
@@ -43,6 +45,7 @@ mod quote {
         
     }
 
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     struct SgxEnclaveReport {
         cpu_svn: [u8; 16],      // [16 bytes]
                                 // Security Version of the CPU (raw value)
