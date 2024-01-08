@@ -90,4 +90,85 @@ mod quote {
                                 // The verification of the quote signature confirms the integrity of the
                                 // report data (and the rest of the REPORT body).
     }
+
+    impl SgxQuote {
+        pub fn from_bytes(raw_bytes: &[u8]) -> SgxQuote {
+            let header = SgxQuoteHeader::from_bytes(&raw_bytes[0..48]);
+            let isv_enclave_report = SgxEnclaveReport::from_bytes(&raw_bytes[48..432]);
+            let signature_len = u32::from_le_bytes([raw_bytes[432], raw_bytes[433], raw_bytes[434], raw_bytes[435]]);
+            // allocate and create a buffer for signature
+            let signature_slice = &raw_bytes[436..];
+            assert_eq!(signature_slice.len(), signature_len as usize);
+            let signature = signature_slice.to_vec().into_boxed_slice().as_mut_ptr();
+
+            SgxQuote {
+                header,
+                isv_enclave_report,
+                signature_len,
+                signature,
+            }
+        }
+    }
+
+    impl SgxQuoteHeader {
+        pub fn from_bytes(raw_bytes: &[u8]) -> SgxQuoteHeader {
+            assert_eq!(raw_bytes.len(), 48);
+            let mut obj = SgxQuoteHeader {
+                version: 0,
+                att_key_type: 0,
+                reserved: [0; 4],
+                qe_svn: 0,
+                pce_svn: 0,
+                qe_vendor_id: [0; 16],
+                user_data: [0; 20],
+            };
+
+            // parse raw bytes into obj
+            obj.version = u16::from_le_bytes([raw_bytes[0], raw_bytes[1]]);
+            obj.att_key_type = u16::from_le_bytes([raw_bytes[2], raw_bytes[3]]);
+            obj.reserved.copy_from_slice(&raw_bytes[4..8]);
+            obj.qe_svn = u16::from_le_bytes([raw_bytes[8], raw_bytes[9]]);
+            obj.pce_svn = u16::from_le_bytes([raw_bytes[10], raw_bytes[11]]);
+            obj.qe_vendor_id.copy_from_slice(&raw_bytes[12..28]);
+            obj.user_data.copy_from_slice(&raw_bytes[28..48]);
+
+            return obj;
+        }
+    }
+
+    impl SgxEnclaveReport {
+        pub fn from_bytes(raw_bytes: &[u8]) -> SgxEnclaveReport{
+            assert_eq!(raw_bytes.len(), 384);
+            let mut obj = SgxEnclaveReport {
+                cpu_svn: [0; 16],
+                misc_select: [0; 4],
+                reserved_1: [0; 28],
+                attributes: [0; 16],
+                mrenclave: [0; 32],
+                reserved_2: [0; 32],
+                mrsigner: [0; 32],
+                reserved_3: [0; 96],
+                isv_prod_id: 0,
+                isv_svn: 0,
+                reserved_4: [0; 60],
+                report_data: [0; 64],
+            };
+
+            // parse raw bytes into obj
+            obj.cpu_svn.copy_from_slice(&raw_bytes[0..16]);
+            obj.misc_select.copy_from_slice(&raw_bytes[16..20]);
+            obj.reserved_1.copy_from_slice(&raw_bytes[20..48]);
+            obj.attributes.copy_from_slice(&raw_bytes[48..64]);
+            obj.mrenclave.copy_from_slice(&raw_bytes[64..96]);
+            obj.reserved_2.copy_from_slice(&raw_bytes[96..128]);
+            obj.mrsigner.copy_from_slice(&raw_bytes[128..160]);
+            obj.reserved_3.copy_from_slice(&raw_bytes[160..256]);
+            obj.isv_prod_id = u16::from_le_bytes([raw_bytes[256], raw_bytes[257]]);
+            obj.isv_svn = u16::from_le_bytes([raw_bytes[258], raw_bytes[259]]);
+            obj.reserved_4.copy_from_slice(&raw_bytes[260..320]);
+            obj.report_data.copy_from_slice(&raw_bytes[320..384]);
+
+            return obj;
+        }
+    }
 }
