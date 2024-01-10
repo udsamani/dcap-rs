@@ -9,3 +9,4 @@ edition = "2021"
 crate-type = ["lib"]
 
 [dependencies]
+hex = "0.4"
