@@ -9,4 +9,5 @@ edition = "2021"
 crate-type = ["lib"]
 
 [dependencies]
-hex = "0.4"
+hex         = "0.4"
+x509-parser = "0.15.1"
