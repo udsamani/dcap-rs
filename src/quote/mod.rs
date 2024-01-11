@@ -112,8 +112,34 @@ pub struct SgxQeAuthData {
 
 pub struct SgxQeCertData {
     pub cert_data_type: u16,
-    pub size: u16,
+    pub cert_data_size: u16,
     pub cert_data: Vec<u8>,
+}
+
+impl SgxQeAuthData {
+    pub fn from_bytes(raw_bytes: &[u8]) -> SgxQeAuthData {
+        let size = u16::from_le_bytes([raw_bytes[0], raw_bytes[1]]);
+        assert_eq!(raw_bytes.len(), size as usize + 2);
+        let data = raw_bytes[2..].to_vec();
+        SgxQeAuthData {
+            size,
+            data,
+        }
+    }
+}
+
+impl SgxQeCertData {
+    pub fn from_bytes(raw_bytes: &[u8]) -> SgxQeCertData {
+        let cert_data_type = u16::from_le_bytes([raw_bytes[0], raw_bytes[1]]);
+        let cert_data_size = u16::from_le_bytes([raw_bytes[2], raw_bytes[3]]);
+        assert_eq!(raw_bytes.len(), cert_data_size as usize + 4);
+        let cert_data = raw_bytes[4..].to_vec();
+        SgxQeCertData {
+            cert_data_type,
+            cert_data_size,
+            cert_data
+        }
+    }
 }
 
 impl SgxQuote {
@@ -205,6 +231,20 @@ fn parse_certchain<'a>(pem_certs: &'a[Pem]) -> Vec<X509Certificate<'a>> {
     pem_certs.iter().map(|pem| {
         pem.parse_x509().unwrap()
     }).collect()
+}
+
+const MRSIGNER: [u8; 32] = [0; 32];
+const MRENCLAVE: [u8; 32] = [0; 32];
+
+pub fn verify_quote(quote: SgxQuote) {
+    // we'll extract the ISV (local enclave AKA the enclave that is attesting) report from the quote 
+    let isv_enclave_report = quote.isv_enclave_report;
+
+    // check that our enclave's mrsigner and mrenclave are correct
+    assert_eq!(isv_enclave_report.mrsigner, MRSIGNER);
+    assert_eq!(isv_enclave_report.mrenclave, MRENCLAVE);
+
+
 }
 
 mod tests {
