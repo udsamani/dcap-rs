@@ -145,7 +145,7 @@ impl SgxQuoteSignatureData {
 impl SgxQeAuthData {
     pub fn from_bytes(raw_bytes: &[u8]) -> SgxQeAuthData {
         let size = u16::from_le_bytes([raw_bytes[0], raw_bytes[1]]);
-        let data = raw_bytes[2..].to_vec();
+        let data = raw_bytes[2..2+size as usize].to_vec();
         SgxQeAuthData {
             size,
             data,
@@ -157,7 +157,7 @@ impl SgxQeCertData {
     pub fn from_bytes(raw_bytes: &[u8]) -> SgxQeCertData {
         let cert_data_type = u16::from_le_bytes([raw_bytes[0], raw_bytes[1]]);
         let cert_data_size = u16::from_le_bytes([raw_bytes[2], raw_bytes[3]]);
-        let cert_data = raw_bytes[4..].to_vec();
+        let cert_data = raw_bytes[4..4+cert_data_size as usize].to_vec();
         SgxQeCertData {
             cert_data_type,
             cert_data_size,
