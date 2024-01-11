@@ -97,12 +97,13 @@ pub struct SgxEnclaveReport {
 }
 
 pub struct SgxQuoteSignatureData {
-    pub isv_enclave_report_signature: [u8; 64],
-    pub ecdsa_attestation_key: [u8; 64],
+    pub isv_enclave_report_signature: [u8; 64],     // ECDSA signature, the r component followed by the s component, 2 x 32 bytes.
+    pub ecdsa_attestation_key: [u8; 64],            // EC KT-I Public Key, the x-coordinate followed by the y-coordinate 
+                                                    // (on the RFC 6090 P-256 curve), 2 x 32 bytes.
     pub qe_report: SgxEnclaveReport,
     pub qe_report_signature: [u8; 64],
     pub qe_auth_data: SgxQeAuthData,
-    pub qe_certification_data: SgxQeCertData,
+    pub qe_cert_data: SgxQeCertData,
 }
 
 pub struct SgxQeAuthData {
@@ -116,10 +117,34 @@ pub struct SgxQeCertData {
     pub cert_data: Vec<u8>,
 }
 
+impl SgxQuoteSignatureData {
+    pub fn from_bytes(raw_bytes: &[u8]) -> SgxQuoteSignatureData {
+        let mut isv_enclave_report_signature = [0u8; 64];
+        let mut ecdsa_attestation_key = [0u8; 64];
+        let mut qe_report_signature = [0u8; 64];
+
+        isv_enclave_report_signature.copy_from_slice(&raw_bytes[0..64]);
+        ecdsa_attestation_key.copy_from_slice(&raw_bytes[64..128]);
+        let qe_report = SgxEnclaveReport::from_bytes(&raw_bytes[128..512]);
+        qe_report_signature.copy_from_slice(&raw_bytes[512..576]);
+        let qe_auth_data = SgxQeAuthData::from_bytes(&raw_bytes[576..]);
+        let qe_cert_data_start = 576 + 2 + qe_auth_data.size as usize;
+        let qe_cert_data = SgxQeCertData::from_bytes(&raw_bytes[qe_cert_data_start..]);
+
+        SgxQuoteSignatureData {
+            isv_enclave_report_signature,
+            ecdsa_attestation_key,
+            qe_report,
+            qe_report_signature,
+            qe_auth_data,
+            qe_cert_data,
+        }
+    }
+}
+
 impl SgxQeAuthData {
     pub fn from_bytes(raw_bytes: &[u8]) -> SgxQeAuthData {
         let size = u16::from_le_bytes([raw_bytes[0], raw_bytes[1]]);
-        assert_eq!(raw_bytes.len(), size as usize + 2);
         let data = raw_bytes[2..].to_vec();
         SgxQeAuthData {
             size,
@@ -132,7 +157,6 @@ impl SgxQeCertData {
     pub fn from_bytes(raw_bytes: &[u8]) -> SgxQeCertData {
         let cert_data_type = u16::from_le_bytes([raw_bytes[0], raw_bytes[1]]);
         let cert_data_size = u16::from_le_bytes([raw_bytes[2], raw_bytes[3]]);
-        assert_eq!(raw_bytes.len(), cert_data_size as usize + 4);
         let cert_data = raw_bytes[4..].to_vec();
         SgxQeCertData {
             cert_data_type,
