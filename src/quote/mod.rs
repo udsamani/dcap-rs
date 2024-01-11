@@ -96,6 +96,26 @@ pub struct SgxEnclaveReport {
                                 // report data (and the rest of the REPORT body).
 }
 
+pub struct SgxQuoteSignatureData {
+    pub isv_enclave_report_signature: [u8; 64],
+    pub ecdsa_attestation_key: [u8; 64],
+    pub qe_report: SgxEnclaveReport,
+    pub qe_report_signature: [u8; 64],
+    pub qe_auth_data: SgxQeAuthData,
+    pub qe_certification_data: SgxQeCertData,
+}
+
+pub struct SgxQeAuthData {
+    pub size: u16,
+    pub data: Vec<u8>,
+}
+
+pub struct SgxQeCertData {
+    pub cert_data_type: u16,
+    pub size: u16,
+    pub cert_data: Vec<u8>,
+}
+
 impl SgxQuote {
     pub fn from_bytes(raw_bytes: &[u8]) -> SgxQuote {
         let header = SgxQuoteHeader::from_bytes(&raw_bytes[0..48]);
