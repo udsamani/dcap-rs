@@ -24,7 +24,7 @@ pub struct SgxQuote {
                                                 // Size of the Quote Signature Data structure in bytes.
     pub signature: *mut u8,                     // [variable bytes]
                                                 // Variable-length data containing the signature and supporting data. 
-                                                // E.g. ECDSA 256-bit Quote Signature Data Structure (SgxEnclaveReport)
+                                                // E.g. ECDSA 256-bit Quote Signature Data Structure (SgxQuoteSignatureData)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
