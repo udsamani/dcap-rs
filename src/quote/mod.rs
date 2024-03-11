@@ -1,5 +1,9 @@
 
+use core::slice;
+
 use x509_parser::prelude::*;
+
+use p256::{ecdsa::{VerifyingKey, signature::Verifier, Signature}, NistP256};
 
 
 // https://download.01.org/intel-sgx/latest/dcap-latest/linux/docs/Intel_SGX_ECDSA_QuoteLibReference_DCAP_API.pdf
@@ -46,7 +50,7 @@ pub struct SgxQuoteHeader {
                                 // Custom user-defined data. 
                                 // For the Intel® SGX DCAP library, the first 16 bytes contain a QE identifier that is 
                                 // used to link a PCK Cert to an Enc(PPID). This identifier is consistent for
-                                //every quote generated with this QE on this platform.
+                                // every quote generated with this QE on this platform.
     
 }
 
@@ -96,6 +100,7 @@ pub struct SgxEnclaveReport {
                                 // report data (and the rest of the REPORT body).
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SgxQuoteSignatureData {
     pub isv_enclave_report_signature: [u8; 64],     // ECDSA signature, the r component followed by the s component, 2 x 32 bytes.
     pub ecdsa_attestation_key: [u8; 64],            // EC KT-I Public Key, the x-coordinate followed by the y-coordinate 
@@ -106,15 +111,45 @@ pub struct SgxQuoteSignatureData {
     pub qe_cert_data: SgxQeCertData,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SgxQeAuthData {
     pub size: u16,
     pub data: Vec<u8>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SgxQeCertData {
     pub cert_data_type: u16,
     pub cert_data_size: u16,
     pub cert_data: Vec<u8>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct EnclaveReportArgs {
+    // for the description of each parameter, check out SgxEnclaveReport
+    pub cpu_svn: Option<[u8; 16]>,      // [16 bytes]
+    pub misc_select: Option<[u8; 4]>,   // [4 bytes]
+    pub attributes: Option<[u8; 16]>,   // [16 bytes]
+    pub mrenclave: Option<[u8; 32]>,    // [32 bytes] 
+    pub mrsigner: Option<[u8; 32]>,     // [32 bytes]
+    pub isv_prod_id: Option<u16>,       // [2 bytes]
+    pub isv_svn: Option<u16>,           // [2 bytes]
+    pub report_data: Option<[u8; 64]>,  // [64 bytes]
+}
+
+impl EnclaveReportArgs {
+    pub fn default() -> EnclaveReportArgs {
+        EnclaveReportArgs {
+            cpu_svn: None,
+            misc_select: None,
+            attributes: None,
+            mrenclave: None,
+            mrsigner: None,
+            isv_prod_id: None,
+            isv_svn: None,
+            report_data: None,
+        }
+    }
 }
 
 impl SgxQuoteSignatureData {
@@ -188,26 +223,27 @@ impl SgxQuote {
 impl SgxQuoteHeader {
     pub fn from_bytes(raw_bytes: &[u8]) -> SgxQuoteHeader {
         assert_eq!(raw_bytes.len(), 48);
-        let mut obj = SgxQuoteHeader {
-            version: 0,
-            att_key_type: 0,
-            reserved: [0; 4],
-            qe_svn: 0,
-            pce_svn: 0,
-            qe_vendor_id: [0; 16],
-            user_data: [0; 20],
-        };
 
-        // parse raw bytes into obj
-        obj.version = u16::from_le_bytes([raw_bytes[0], raw_bytes[1]]);
-        obj.att_key_type = u16::from_le_bytes([raw_bytes[2], raw_bytes[3]]);
-        obj.reserved.copy_from_slice(&raw_bytes[4..8]);
-        obj.qe_svn = u16::from_le_bytes([raw_bytes[8], raw_bytes[9]]);
-        obj.pce_svn = u16::from_le_bytes([raw_bytes[10], raw_bytes[11]]);
-        obj.qe_vendor_id.copy_from_slice(&raw_bytes[12..28]);
-        obj.user_data.copy_from_slice(&raw_bytes[28..48]);
+        let version = u16::from_le_bytes([raw_bytes[0], raw_bytes[1]]);
+        let att_key_type = u16::from_le_bytes([raw_bytes[2], raw_bytes[3]]);
+        let mut reserved = [0; 4];
+        reserved.copy_from_slice(&raw_bytes[4..8]);
+        let qe_svn = u16::from_le_bytes([raw_bytes[8], raw_bytes[9]]);
+        let pce_svn = u16::from_le_bytes([raw_bytes[10], raw_bytes[11]]);
+        let mut qe_vendor_id = [0; 16];
+        qe_vendor_id.copy_from_slice(&raw_bytes[12..28]);
+        let mut user_data = [0; 20];
+        user_data.copy_from_slice(&raw_bytes[28..48]);
 
-        return obj;
+        SgxQuoteHeader {
+            version,
+            att_key_type,
+            reserved,
+            qe_svn,
+            pce_svn,
+            qe_vendor_id,
+            user_data,
+        }
     }
 }
 
@@ -247,14 +283,46 @@ impl SgxEnclaveReport {
     }
 }
 
-fn parse_pem(raw_bytes: &[u8]) -> Result<Vec<Pem>, PEMError> {
+pub fn parse_pem(raw_bytes: &[u8]) -> Result<Vec<Pem>, PEMError> {
     Pem::iter_from_buffer(raw_bytes).collect()
 }
 
-fn parse_certchain<'a>(pem_certs: &'a[Pem]) -> Vec<X509Certificate<'a>> {
+pub fn parse_certchain<'a>(pem_certs: &'a[Pem]) -> Vec<X509Certificate<'a>> {
     pem_certs.iter().map(|pem| {
         pem.parse_x509().unwrap()
     }).collect()
+}
+
+pub fn verify_certchain<'a>(certs: &'a [X509Certificate<'a>], root_cert: &X509Certificate<'a>) -> bool {
+    // verify that the cert chain is valid
+    let mut iter = certs.iter();
+    let mut prev_cert = iter.next().unwrap();
+    for cert in iter {
+        // verify that the previous cert signed the current cert
+        if !verify_certificate(prev_cert, cert.public_key().subject_public_key.as_ref()) {
+            return false;
+        }
+        // verify that the current cert is valid
+        if !validate_certificate(prev_cert) {
+            return false;
+        }
+        prev_cert = cert;
+    }
+    // verify that the root cert signed the last cert
+    verify_certificate(prev_cert, root_cert.public_key().subject_public_key.as_ref())
+}
+
+fn verify_certificate(cert: &X509Certificate, public_key_raw: &[u8]) -> bool {
+    // verifies that the certificate is valid
+    let signature = Signature::from_der(&cert.signature_value.as_ref()).unwrap();
+    let verifying_key = VerifyingKey::from_sec1_bytes(public_key_raw).unwrap();
+    verifying_key.verify(&cert.tbs_certificate.as_ref(), &signature).is_ok()
+}
+
+fn validate_certificate(cert: &X509Certificate) -> bool {
+    // TODO: check that the certificate is a valid cert.
+    // for now, we'll just return true
+    true
 }
 
 const MRSIGNER: [u8; 32] = [0; 32];
@@ -264,21 +332,109 @@ pub fn verify_quote(quote: SgxQuote) {
     // we'll extract the ISV (local enclave AKA the enclave that is attesting) report from the quote 
     let isv_enclave_report = quote.isv_enclave_report;
 
-    // check that our enclave's mrsigner and mrenclave are correct
-    assert_eq!(isv_enclave_report.mrsigner, MRSIGNER);
-    assert_eq!(isv_enclave_report.mrenclave, MRENCLAVE);
+    // check that the ISV enclave (local enclave) is valid
+    // we assume that there exists known good values of the enclave's measurement
+    let isv_enclave_check_args = EnclaveReportArgs {
+        cpu_svn: None,
+        misc_select: None,
+        attributes: None,
+        mrenclave: Some(MRENCLAVE),
+        mrsigner: Some(MRSIGNER),
+        isv_prod_id: None,
+        isv_svn: None,
+        report_data: None,
+    };
+    assert!(verify_enclave_report(&isv_enclave_report, isv_enclave_check_args));
+
+    // at this point, the isv enclave reports matches what we think it is
+    // next is to verify the integrity of the report
+
+    // check that the QE Report is correct
+    // we'll first parse the signature into a ECDSA Quote signature data
+    let ecdsa_quote_signature_data_slice = unsafe{slice::from_raw_parts_mut(quote.signature, quote.signature_len as usize)};
+    let ecdsa_quote_signature_data =  SgxQuoteSignatureData::from_bytes(ecdsa_quote_signature_data_slice);
+
+    // we'll get the certchain embedded in the ecda quote signature data
+    // this can be one of 5 types
+    // we'll only handle type 5 for now...
+    // TODO: Add support for all other types
+
+    assert_eq!(ecdsa_quote_signature_data.qe_cert_data.cert_data_type, 5);
+    let certchain_pems = parse_pem(&ecdsa_quote_signature_data.qe_cert_data.cert_data).unwrap();
+
+    let leaf_cert = parse_certchain(&certchain_pems).pop().unwrap();
 
 
 }
 
+pub fn verify_enclave_report(enclave_report: &SgxEnclaveReport, report_args: EnclaveReportArgs) -> bool {
+    let mut results = [None; 8];
+    // for each of the parameters, check if the enclave report matches the expected value
+    if let Some(cpu_svn) = report_args.cpu_svn {
+        results[0] = Some(enclave_report.cpu_svn == cpu_svn);
+    };
+
+    if let Some(misc_select) = report_args.misc_select {
+        results[1] = Some(enclave_report.misc_select == misc_select);
+    };
+
+    if let Some(attributes) = report_args.attributes {
+        results[2] = Some(enclave_report.attributes == attributes);
+    };
+
+    if let Some(mrenclave) = report_args.mrenclave {
+        results[3] = Some(enclave_report.mrenclave == mrenclave);
+    };
+
+    if let Some(mrsigner) = report_args.mrsigner {
+        results[4] = Some(enclave_report.mrsigner == mrsigner);
+    };
+
+    if let Some(isv_prod_id) = report_args.isv_prod_id {
+        results[5] = Some(enclave_report.isv_prod_id == isv_prod_id);
+    };
+
+    if let Some(isv_svn) = report_args.isv_svn {
+        results[6] = Some(enclave_report.isv_svn == isv_svn);
+    };
+
+    if let Some(report_data) = report_args.report_data {
+        results[7] = Some(enclave_report.report_data == report_data);
+    };
+
+    // check if all the results are true
+    for result in results.iter() {
+        if result.unwrap() == false {
+            return false;
+        }
+    }
+
+    true
+}
+
 mod tests {
     use super::*;
+    use oid_registry::{OID_SIG_ECDSA_WITH_SHA256, OID_SIG_ECDSA_WITH_SHA384};
 
     #[test]
     fn test_certchain_parsing() {
         let certchain_bytes = hex::decode("2d2d2d2d2d424547494e2043455254494649434154452d2d2d2d2d0a4d494945386a4343424a6d674177494241674956414b7750766270377a6f7a50754144646b792b6f526e356f36704d754d416f4743437147534d343942414d430a4d484178496a416742674e5642414d4d47556c756447567349464e4857434251513073675547786864475a76636d306751304578476a415942674e5642416f4d0a45556c756447567349454e76636e4276636d4630615739754d5251774567594456515148444174545957353059534244624746795954454c4d416b47413155450a4341774351304578437a414a42674e5642415954416c56544d4234584454497a4d4467794e4449784d7a557a4d6c6f5844544d774d4467794e4449784d7a557a0a4d6c6f77634445694d434147413155454177775a535735305a5777675530645949464244537942445a584a3061575a70593246305a5445614d426747413155450a43677752535735305a577767513239796347397959585270623234784644415342674e564241634d43314e68626e526849454e7359584a684d517377435159440a5651514944414a445154454c4d416b474131554542684d4356564d775754415442676371686b6a4f5051494242676771686b6a4f50514d4242774e43414154450a764b6a754b66376969723832686d2b4d5a4151452b6847643349716d53396235634e63484a754b7a5a445970626f35496a344c7a7176704f503830706f4152730a59504233594e355537704d3777644936314b66716f344944446a434341776f77487759445652306a42426777466f41556c5739647a62306234656c4153636e550a3944504f4156634c336c5177617759445652306642475177596a42676f46366758495a616148523063484d364c79396863476b7564484a316333526c5a484e6c0a636e5a705932567a4c6d6c75644756734c6d4e766253397a5a3367765932567964476c6d61574e6864476c76626939324d7939775932746a636d772f593245390a6347786864475a76636d306d5a57356a62325270626d63395a4756794d4230474131556444675157424251695a7667373930317a3171554d3874534c754358580a6571314c6f54414f42674e56485138424166384542414d434273417744415944565230544151482f4241497741444343416a734743537147534962345451454e0a41515343416977776767496f4d42344743697147534962345451454e41514545454358343464705036434c5154772f785543575448306b776767466c42676f710a686b69472b453042445145434d4949425654415142677371686b69472b45304244514543415149424444415142677371686b69472b45304244514543416749420a4444415142677371686b69472b4530424451454341774942417a415142677371686b69472b4530424451454342414942417a415242677371686b69472b4530420a4451454342514943415038774551594c4b6f5a496876684e41513042416759434167442f4d42414743797147534962345451454e41514948416745424d4241470a43797147534962345451454e41514949416745414d42414743797147534962345451454e4151494a416745414d42414743797147534962345451454e4151494b0a416745414d42414743797147534962345451454e4151494c416745414d42414743797147534962345451454e4151494d416745414d42414743797147534962340a5451454e4151494e416745414d42414743797147534962345451454e4151494f416745414d42414743797147534962345451454e41514950416745414d4241470a43797147534962345451454e41514951416745414d42414743797147534962345451454e415149524167454e4d42384743797147534962345451454e415149530a4242414d44414d442f2f38424141414141414141414141414d42414743697147534962345451454e41514d45416741414d42514743697147534962345451454e0a4151514542674267616741414144415042676f71686b69472b45304244514546436745424d42344743697147534962345451454e4151594545424531784169510a72743945363234433159516b497034775241594b4b6f5a496876684e41513042427a41324d42414743797147534962345451454e415163424151482f4d4241470a43797147534962345451454e41516343415145414d42414743797147534962345451454e41516344415145414d416f4743437147534d343942414d43413063410a4d45514349445a6f63514c6478362b4f2b586d4f6b766f6b654133345a617261342b6539534e5877344b68396d5876574169415479695a6e495932474f3466670a4938673342666c4e434f56446e42505270507559377274484e77335470513d3d0a2d2d2d2d2d454e442043455254494649434154452d2d2d2d2d0a2d2d2d2d2d424547494e2043455254494649434154452d2d2d2d2d0a4d4949436c6a4343416a32674177494241674956414a567658633239472b487051456e4a3150517a7a674658433935554d416f4743437147534d343942414d430a4d476778476a415942674e5642414d4d45556c756447567349464e48574342536232393049454e424d526f77474159445651514b4442464a626e526c624342440a62334a7762334a6864476c76626a45554d424947413155454277774c553246756447456751327868636d4578437a414a42674e564241674d416b4e424d5173770a435159445651514745774a56557a4165467730784f4441314d6a45784d4455774d5442614677307a4d7a41314d6a45784d4455774d5442614d484178496a41670a42674e5642414d4d47556c756447567349464e4857434251513073675547786864475a76636d306751304578476a415942674e5642416f4d45556c75644756730a49454e76636e4276636d4630615739754d5251774567594456515148444174545957353059534244624746795954454c4d416b474131554543417743513045780a437a414a42674e5642415954416c56544d466b77457759484b6f5a497a6a3043415159494b6f5a497a6a304441516344516741454e53422f377432316c58534f0a3243757a7078773734654a423732457944476757357258437478327456544c7136684b6b367a2b5569525a436e71523770734f766771466553786c6d546c4a6c0a65546d693257597a33714f42757a43427544416642674e5648534d4547444157674251695a517a575770303069664f44744a5653763141624f536347724442530a42674e5648523845537a424a4d45656752614244686b466f64485277637a6f764c324e6c636e52705a6d6c6a5958526c63793530636e567a6447566b633256790a646d6c6a5a584d75615735305a577775593239744c306c756447567355306459556d397664454e424c6d526c636a416442674e5648513445466751556c5739640a7a62306234656c4153636e553944504f4156634c336c517744675944565230504151482f42415144416745474d42494741315564457745422f7751494d4159420a4166384341514177436759494b6f5a497a6a30454177494452774177524149675873566b6930772b6936565947573355462f32327561586530594a446a3155650a6e412b546a44316169356343494359623153416d4435786b66545670766f34556f79695359787244574c6d5552344349394e4b7966504e2b0a2d2d2d2d2d454e442043455254494649434154452d2d2d2d2d0a2d2d2d2d2d424547494e2043455254494649434154452d2d2d2d2d0a4d4949436a7a4343416a53674177494241674955496d554d316c71644e496e7a6737535655723951477a6b6e42717777436759494b6f5a497a6a3045417749770a614445614d4267474131554541777752535735305a5777675530645949464a766233516751304578476a415942674e5642416f4d45556c756447567349454e760a636e4276636d4630615739754d5251774567594456515148444174545957353059534244624746795954454c4d416b47413155454341774351304578437a414a0a42674e5642415954416c56544d423458445445344d4455794d5445774e4455784d466f58445451354d54497a4d54497a4e546b314f566f77614445614d4267470a4131554541777752535735305a5777675530645949464a766233516751304578476a415942674e5642416f4d45556c756447567349454e76636e4276636d46300a615739754d5251774567594456515148444174545957353059534244624746795954454c4d416b47413155454341774351304578437a414a42674e56424159540a416c56544d466b77457759484b6f5a497a6a3043415159494b6f5a497a6a3044415163445167414543366e45774d4449595a4f6a2f69505773437a61454b69370a314f694f534c52466857476a626e42564a66566e6b59347533496a6b4459594c304d784f346d717379596a6c42616c54565978465032734a424b357a6c4b4f420a757a43427544416642674e5648534d4547444157674251695a517a575770303069664f44744a5653763141624f5363477244425342674e5648523845537a424a0a4d45656752614244686b466f64485277637a6f764c324e6c636e52705a6d6c6a5958526c63793530636e567a6447566b63325679646d6c6a5a584d75615735300a5a577775593239744c306c756447567355306459556d397664454e424c6d526c636a416442674e564851344546675155496d554d316c71644e496e7a673753560a55723951477a6b6e4271777744675944565230504151482f42415144416745474d42494741315564457745422f7751494d4159424166384341514577436759490a4b6f5a497a6a3045417749445351417752674968414f572f35516b522b533943695344634e6f6f774c7550524c735747662f59693747535839344267775477670a41694541344a306c72486f4d732b586f356f2f7358364f39515778485241765a55474f6452513763767152586171493d0a2d2d2d2d2d454e442043455254494649434154452d2d2d2d2d0a00").unwrap();
         let certchain_pems = parse_pem(&certchain_bytes).unwrap();
         let certs = parse_certchain(&certchain_pems);
-        println!("{:?}", certs);
+        let root_cert_bytes = hex::decode("2d2d2d2d2d424547494e2043455254494649434154452d2d2d2d2d0a4d4949436a7a4343416a53674177494241674955496d554d316c71644e496e7a6737535655723951477a6b6e42717777436759494b6f5a497a6a3045417749770a614445614d4267474131554541777752535735305a5777675530645949464a766233516751304578476a415942674e5642416f4d45556c756447567349454e760a636e4276636d4630615739754d5251774567594456515148444174545957353059534244624746795954454c4d416b47413155454341774351304578437a414a0a42674e5642415954416c56544d423458445445344d4455794d5445774e4455784d466f58445451354d54497a4d54497a4e546b314f566f77614445614d4267470a4131554541777752535735305a5777675530645949464a766233516751304578476a415942674e5642416f4d45556c756447567349454e76636e4276636d46300a615739754d5251774567594456515148444174545957353059534244624746795954454c4d416b47413155454341774351304578437a414a42674e56424159540a416c56544d466b77457759484b6f5a497a6a3043415159494b6f5a497a6a3044415163445167414543366e45774d4449595a4f6a2f69505773437a61454b69370a314f694f534c52466857476a626e42564a66566e6b59347533496a6b4459594c304d784f346d717379596a6c42616c54565978465032734a424b357a6c4b4f420a757a43427544416642674e5648534d4547444157674251695a517a575770303069664f44744a5653763141624f5363477244425342674e5648523845537a424a0a4d45656752614244686b466f64485277637a6f764c324e6c636e52705a6d6c6a5958526c63793530636e567a6447566b63325679646d6c6a5a584d75615735300a5a577775593239744c306c756447567355306459556d397664454e424c6d526c636a416442674e564851344546675155496d554d316c71644e496e7a673753560a55723951477a6b6e4271777744675944565230504151482f42415144416745474d42494741315564457745422f7751494d4159424166384341514577436759490a4b6f5a497a6a3045417749445351417752674968414f572f35516b522b533943695344634e6f6f774c7550524c735747662f59693747535839344267775477670a41694541344a306c72486f4d732b586f356f2f7358364f39515778485241765a55474f6452513763767152586171493d0a2d2d2d2d2d454e442043455254494649434154452d2d2d2d2d0a").unwrap();
+        let root_cert_pem = parse_pem(&root_cert_bytes).unwrap().pop().unwrap();
+        let root_cert = root_cert_pem.parse_x509().unwrap();
+        println!("root cert: {:?}", root_cert.serial);
+
+        let cert = certs[0].clone();
+        println!("{:?}", cert.tbs_certificate.as_ref());
+        println!("{:?}", cert.tbs_certificate.signature.algorithm);
+        println!("{:?}", cert.tbs_certificate.signature.parameters);
+        println!("{}", cert.tbs_certificate.signature.algorithm == OID_SIG_ECDSA_WITH_SHA256);
+        println!("{}", cert.tbs_certificate.signature.algorithm == OID_SIG_ECDSA_WITH_SHA384);
+        println!("{:?}" ,cert.public_key().raw);
+        println!("{:?}" ,cert.public_key().subject_public_key.as_ref());
+        let check = verify_certchain(&certs, &root_cert);
+        println!("{}", check);
     }
 }
