@@ -9,5 +9,7 @@ edition = "2021"
 crate-type = ["lib"]
 
 [dependencies]
-hex         = "0.4"
-x509-parser = "0.15.1"
+hex          = "0.4"
+x509-parser  = "0.15.1"
+oid-registry = "0.6"
+p256         = { git = "https://github.com/risc0/RustCrypto-elliptic-curves", tag = "p256/v0.13.2" }
