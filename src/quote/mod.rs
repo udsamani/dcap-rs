@@ -1,5 +1,7 @@
 
 use core::slice;
+use serde::{Deserialize, Serialize};
+
 
 use x509_parser::prelude::*;
 
@@ -135,6 +137,56 @@ pub struct EnclaveReportArgs {
     pub isv_prod_id: Option<u16>,       // [2 bytes]
     pub isv_svn: Option<u16>,           // [2 bytes]
     pub report_data: Option<[u8; 64]>,  // [64 bytes]
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TcbInfoRoot {
+    pub tcb_info: TcbInfo,
+    pub signature: String,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TcbInfo {
+    pub version: i64,
+    pub issue_date: String,
+    pub next_update: String,
+    pub fmspc: String,
+    pub pce_id: String,
+    pub tcb_type: i64,
+    pub tcb_evaluation_data_number: i64,
+    pub tcb_levels: Vec<TcbLevel>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TcbLevel {
+    pub tcb: Tcb,
+    pub tcb_date: String,
+    pub tcb_status: String,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Tcb {
+    pub sgxtcbcomp01svn: i64,
+    pub sgxtcbcomp02svn: i64,
+    pub sgxtcbcomp03svn: i64,
+    pub sgxtcbcomp04svn: i64,
+    pub sgxtcbcomp05svn: i64,
+    pub sgxtcbcomp06svn: i64,
+    pub sgxtcbcomp07svn: i64,
+    pub sgxtcbcomp08svn: i64,
+    pub sgxtcbcomp09svn: i64,
+    pub sgxtcbcomp10svn: i64,
+    pub sgxtcbcomp11svn: i64,
+    pub sgxtcbcomp12svn: i64,
+    pub sgxtcbcomp13svn: i64,
+    pub sgxtcbcomp14svn: i64,
+    pub sgxtcbcomp15svn: i64,
+    pub sgxtcbcomp16svn: i64,
+    pub pcesvn: i64,
 }
 
 impl EnclaveReportArgs {
@@ -312,6 +364,12 @@ pub fn verify_certchain<'a>(certs: &'a [X509Certificate<'a>], root_cert: &X509Ce
     verify_certificate(prev_cert, root_cert.public_key().subject_public_key.as_ref())
 }
 
+fn check_tcblevel<'a>(cert: &'a [X509Certificate<'a>]) -> bool {
+    // check that the TCB level of the certificate is valid
+    // for now, we'll just return true
+    true
+}
+
 fn verify_certificate(cert: &X509Certificate, public_key_raw: &[u8]) -> bool {
     // verifies that the certificate is valid
     let signature = Signature::from_der(&cert.signature_value.as_ref()).unwrap();
@@ -436,5 +494,12 @@ mod tests {
         println!("{:?}" ,cert.public_key().subject_public_key.as_ref());
         let check = verify_certchain(&certs, &root_cert);
         println!("{}", check);
+    }
+
+    #[test]
+    fn test_tcbinfo() {
+        let json_str = include_str!("../../data/tcbinfo.json");
+        let tcb_info_root: TcbInfoRoot = serde_json::from_str(json_str).unwrap();
+        println!("{:?}", tcb_info_root);
     }
 }
