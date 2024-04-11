@@ -122,10 +122,10 @@ name = "dcap-rs"
 version = "0.1.0"
 dependencies = [
  "hex",
- "oid-registry",
  "p256",
  "serde",
  "serde_json",
+ "sha2 0.10.8 (git+https://github.com/risc0/RustCrypto-hashes?tag=sha2-v0.10.8)",
  "x509-parser",
 ]
 
@@ -365,7 +365,7 @@ dependencies = [
  "ecdsa",
  "elliptic-curve",
  "primeorder",
- "sha2",
+ "sha2 0.10.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -503,6 +503,16 @@ name = "sha2"
 version = "0.10.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "793db75ad2bcafc3ffa7c68b215fee268f537982cd901d132f89c6343f3a3dc8"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "digest",
+]
+
+[[package]]
+name = "sha2"
+version = "0.10.8"
+source = "git+https://github.com/risc0/RustCrypto-hashes?tag=sha2-v0.10.8#28a7b0da94a581e71e85d264836e1c3f8343338e"
 dependencies = [
  "cfg-if",
  "cpufeatures",
