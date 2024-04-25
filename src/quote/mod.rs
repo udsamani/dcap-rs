@@ -426,6 +426,7 @@ pub struct VerifiedOutput {
     pub tcb_status: TcbStatus,
     pub mr_enclave: [u8; 32],
     pub mr_signer: [u8; 32],
+    pub report_data: [u8; 64],
 }
 
 pub fn parse_pem(raw_bytes: &[u8]) -> Result<Vec<Pem>, PEMError> {
@@ -565,6 +566,7 @@ pub fn verify_quote(quote: SgxQuote, tcb_info_root: TcbInfoRoot) -> VerifiedOutp
         tcb_status,
         mr_enclave: isv_enclave_report.mrenclave,
         mr_signer: isv_enclave_report.mrsigner,
+        report_data: isv_enclave_report.report_data,
     }
 }
 
