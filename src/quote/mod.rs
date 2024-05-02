@@ -148,13 +148,13 @@ pub struct TcbInfoRoot {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TcbInfo {
-    pub version: i64,
+    pub version: u64,
     pub issue_date: String,
     pub next_update: String,
     pub fmspc: String,
     pub pce_id: String,
-    pub tcb_type: i64,
-    pub tcb_evaluation_data_number: i64,
+    pub tcb_type: u64,
+    pub tcb_evaluation_data_number: u64,
     pub tcb_levels: Vec<TcbInfoTcbLevel>,
 }
 
@@ -251,10 +251,10 @@ pub struct EnclaveIdentityRoot {
 #[serde(rename_all = "camelCase")]
 pub struct EnclaveIdentity {
     pub id: String,
-    pub version: i64,
+    pub version: u64,
     pub issue_date: String,
     pub next_update: String,
-    pub tcb_evaluation_data_number: i64,
+    pub tcb_evaluation_data_number: u64,
     pub miscselect: String,
     pub miscselect_mask: String,
     pub attributes: String,
@@ -608,14 +608,14 @@ fn validate_certificate(_cert: &X509Certificate) -> bool {
     true
 }
 
-fn validate_tcbinforoot(tcb_info_root: &TcbInfoRoot, root_verifying_key: &VerifyingKey, current_time: i64) -> bool {
+fn validate_tcbinforoot(tcb_info_root: &TcbInfoRoot, root_verifying_key: &VerifyingKey, current_time: u64) -> bool {
     // get tcb_info_root time
     let issue_date = chrono::DateTime::parse_from_rfc3339(&tcb_info_root.tcb_info.issue_date).unwrap();
     let next_update_date = chrono::DateTime::parse_from_rfc3339(&tcb_info_root.tcb_info.next_update).unwrap();
 
     // convert the issue_date and next_update_date to seconds since epoch
-    let issue_date_seconds = issue_date.timestamp();
-    let next_update_seconds = next_update_date.timestamp();
+    let issue_date_seconds = issue_date.timestamp() as u64;
+    let next_update_seconds = next_update_date.timestamp() as u64;
 
     // check that the current time is between the issue_date and next_update_date
     if current_time < issue_date_seconds || current_time > next_update_seconds {
@@ -634,7 +634,7 @@ fn validate_tcbinforoot(tcb_info_root: &TcbInfoRoot, root_verifying_key: &Verify
     root_verifying_key.verify(&tcb_info_root_signature_data, &tcb_info_root_signature).is_ok()
 }
 
-fn validate_enclaveidentityroot(enclave_identity_root: &EnclaveIdentityRoot, root_verifying_key: &VerifyingKey, current_time: i64) -> bool {
+fn validate_enclaveidentityroot(enclave_identity_root: &EnclaveIdentityRoot, root_verifying_key: &VerifyingKey, current_time: u64) -> bool {
     // get tcb_info_root time
     let issue_date = chrono::DateTime::parse_from_rfc3339(&enclave_identity_root.enclave_identity.issue_date).unwrap();
     let next_update_date = chrono::DateTime::parse_from_rfc3339(&enclave_identity_root.enclave_identity.next_update).unwrap();
@@ -716,7 +716,7 @@ fn verify_qe_report_data(qe_info: &SgxQuoteSignatureData) -> bool {
 // implement qe_report_data check (report_data is the hash of the isv_pubkey || qe_authdata)
 // implement VerifiedOutput serialization / deserialization
 // 
-pub fn verify_quote<'a>(quote: &SgxQuote, tcb_info_root: &TcbInfoRoot, enclave_identity_root: &EnclaveIdentityRoot, signing_cert: &X509Certificate<'a>, root_cert: &X509Certificate<'a>, current_time: i64) -> VerifiedOutput {
+pub fn verify_quote<'a>(quote: &SgxQuote, tcb_info_root: &TcbInfoRoot, enclave_identity_root: &EnclaveIdentityRoot, signing_cert: &X509Certificate<'a>, root_cert: &X509Certificate<'a>, current_time: u64) -> VerifiedOutput {
 
     let root_cert_public_key = root_cert.public_key().subject_public_key.as_ref();
     // let root_verifying_key = VerifyingKey::from_sec1_bytes(root_cert_public_key).unwrap();
