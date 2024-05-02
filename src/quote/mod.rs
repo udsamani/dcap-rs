@@ -640,8 +640,8 @@ fn validate_enclaveidentityroot(enclave_identity_root: &EnclaveIdentityRoot, roo
     let next_update_date = chrono::DateTime::parse_from_rfc3339(&enclave_identity_root.enclave_identity.next_update).unwrap();
 
     // convert the issue_date and next_update_date to seconds since epoch
-    let issue_date_seconds = issue_date.timestamp();
-    let next_update_seconds = next_update_date.timestamp();
+    let issue_date_seconds = issue_date.timestamp() as u64;
+    let next_update_seconds = next_update_date.timestamp() as u64;
 
     // check that the current time is between the issue_date and next_update_date
     if current_time < issue_date_seconds || current_time > next_update_seconds {
