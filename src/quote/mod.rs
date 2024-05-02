@@ -1,7 +1,8 @@
 
-use core::slice;
 use serde::{Deserialize, Serialize};
 
+use sha2::{Sha256, Digest};
+use sha3::Keccak256;
 use x509_parser::{der_parser::asn1_rs::{Boolean, Enumerated}, prelude::*};
 use oid_registry::asn1_rs;
 use asn1_rs::{oid, Sequence, FromDer, Oid, Integer, OctetString};
@@ -13,9 +14,6 @@ use p256::ecdsa::{VerifyingKey, signature::Verifier, Signature};
 
 // high level sgx quote structure
 // [48 - header] [384 - isv enclave report] [4 - quote signature length] [var - quote signature] 
-
-
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SgxQuote {
     pub header: SgxQuoteHeader,                 // [48 bytes]
@@ -157,20 +155,20 @@ pub struct TcbInfo {
     pub pce_id: String,
     pub tcb_type: i64,
     pub tcb_evaluation_data_number: i64,
-    pub tcb_levels: Vec<TcbLevel>,
+    pub tcb_levels: Vec<TcbInfoTcbLevel>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TcbLevel {
-    pub tcb: Tcb,
+pub struct TcbInfoTcbLevel {
+    pub tcb: TcbInfoTcb,
     pub tcb_date: String,
     pub tcb_status: String,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Tcb {
+pub struct TcbInfoTcb {
     pub sgxtcbcomp01svn: u64,
     pub sgxtcbcomp02svn: u64,
     pub sgxtcbcomp03svn: u64,
@@ -240,6 +238,44 @@ pub struct PckPlatformConfiguration {
     pub dynamic_platform: Option<bool>,
     pub cached_keys: Option<bool>,
     pub smt_enabled: Option<bool>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnclaveIdentityRoot {
+    pub enclave_identity: EnclaveIdentity,
+    pub signature: String,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnclaveIdentity {
+    pub id: String,
+    pub version: i64,
+    pub issue_date: String,
+    pub next_update: String,
+    pub tcb_evaluation_data_number: i64,
+    pub miscselect: String,
+    pub miscselect_mask: String,
+    pub attributes: String,
+    pub attributes_mask: String,
+    pub mrsigner: String,
+    pub isvprodid: u16,
+    pub tcb_levels: Vec<EnclaveIdentityTcbLevel>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnclaveIdentityTcbLevel {
+    pub tcb: EnclaveIdentityTcb,
+    pub tcb_date: String,
+    pub tcb_status: String,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnclaveIdentityTcb {
+    pub isvsvn: u16,
 }
 
 impl EnclaveReportArgs {
@@ -421,17 +457,115 @@ impl SgxEnclaveReport {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+// serialization:
+// [tcb_status] [mr_enclave] [mr_signer] [report_data]
+// [ 1 byte   ] [32 bytes  ] [32 bytes ] [64 bytes   ]
+// total: 129 bytes
+#[derive(Clone, Debug)]
 pub struct VerifiedOutput {
     pub tcb_status: TcbStatus,
     pub mr_enclave: [u8; 32],
     pub mr_signer: [u8; 32],
-    pub report_data_upper: [u8; 32],
-    pub report_data_lower: [u8; 32],
+    pub report_data: [u8; 64],
+    pub fmspc: [u8; 6],
+}
+
+impl VerifiedOutput {
+    pub fn to_bytes(self) -> [u8; 135] {
+        let mut raw_bytes = [0; 135];
+        raw_bytes[0] = match self.tcb_status {
+            TcbStatus::OK => 0,
+            TcbStatus::TcbSwHardeningNeeded => 1,
+            TcbStatus::TcbConfigurationAndSwHardeningNeeded => 2,
+            TcbStatus::TcbConfigurationNeeded => 3,
+            TcbStatus::TcbOutOfDate => 4,
+            TcbStatus::TcbOutOfDateConfigurationNeeded => 5,
+            TcbStatus::TcbRevoked => 6,
+            TcbStatus::TcbUnrecognized => 7,
+        };
+        raw_bytes[1..33].copy_from_slice(&self.mr_enclave);
+        raw_bytes[33..65].copy_from_slice(&self.mr_signer);
+        raw_bytes[65..129].copy_from_slice(&self.report_data);
+        raw_bytes[129..135].copy_from_slice(&self.fmspc);
+
+        raw_bytes
+    }
+
+    pub fn from_bytes(slice: &[u8]) -> VerifiedOutput {
+        let tcb_status = match slice[0] {
+            0 => TcbStatus::OK,
+            1 => TcbStatus::TcbSwHardeningNeeded,
+            2 => TcbStatus::TcbConfigurationAndSwHardeningNeeded,
+            3 => TcbStatus::TcbConfigurationNeeded,
+            4 => TcbStatus::TcbOutOfDate,
+            5 => TcbStatus::TcbOutOfDateConfigurationNeeded,
+            6 => TcbStatus::TcbRevoked,
+            7 => TcbStatus::TcbUnrecognized,
+            _ => panic!("Invalid TCB Status"),
+        };
+        let mut mr_enclave = [0; 32];
+        mr_enclave.copy_from_slice(&slice[1..33]);
+        let mut mr_signer = [0; 32];
+        mr_signer.copy_from_slice(&slice[33..65]);
+        let mut report_data= [0; 64];
+        report_data.copy_from_slice(&slice[65..129]);
+        let mut fmspc = [0; 6];
+        fmspc.copy_from_slice(&slice[129..135]);
+
+        VerifiedOutput {
+            tcb_status,
+            mr_enclave,
+            mr_signer,
+            report_data,
+            fmspc,
+        }
+    }
+    
+}
+
+pub fn sha256sum(data: &[u8]) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    let result = hasher.finalize();
+    let mut output = [0; 32];
+    output.copy_from_slice(&result);
+    output
+}
+
+pub fn keccak256sum(data: &[u8]) -> [u8; 32] {
+    let mut hasher = Keccak256::new();
+    hasher.update(data);
+    let result = hasher.finalize();
+    let mut output = [0; 32];
+    output.copy_from_slice(&result);
+    output
 }
 
 pub fn parse_pem(raw_bytes: &[u8]) -> Result<Vec<Pem>, PEMError> {
     Pem::iter_from_buffer(raw_bytes).collect()
+}
+
+pub fn parse_der(raw_bytes: &[u8]) -> X509Certificate {
+    let (_, cert) = X509Certificate::from_der(raw_bytes).unwrap();
+    cert
+}
+
+pub fn hash_cert_keccak256(cert: &X509Certificate) -> [u8; 32] {
+    let mut hasher = Keccak256::new();
+    hasher.update(cert.tbs_certificate.as_ref());
+    let result = hasher.finalize();
+    let mut output = [0; 32];
+    output.copy_from_slice(&result);
+    output
+}
+
+pub fn hash_cert_sha256(cert: &X509Certificate) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(cert.tbs_certificate.as_ref());
+    let result = hasher.finalize();
+    let mut output = [0; 32];
+    output.copy_from_slice(&result);
+    output
 }
 
 pub fn parse_certchain<'a>(pem_certs: &'a[Pem]) -> Vec<X509Certificate<'a>> {
@@ -466,7 +600,7 @@ fn verify_certificate(cert: &X509Certificate, public_key_raw: &[u8]) -> bool {
     verifying_key.verify(&cert.tbs_certificate.as_ref(), &signature).is_ok()
 }
 
-fn validate_certificate(cert: &X509Certificate) -> bool {
+fn validate_certificate(_cert: &X509Certificate) -> bool {
     // TODO: check that the certificate is a valid cert.
     // i.e., make sure that the cert name is correct, issued by intel,
     // has not been revoked, etc.
@@ -474,26 +608,131 @@ fn validate_certificate(cert: &X509Certificate) -> bool {
     true
 }
 
-pub fn verify_quote(quote: &SgxQuote, tcb_info_root: TcbInfoRoot) -> VerifiedOutput {
+fn validate_tcbinforoot(tcb_info_root: &TcbInfoRoot, root_verifying_key: &VerifyingKey, current_time: i64) -> bool {
+    // get tcb_info_root time
+    let issue_date = chrono::DateTime::parse_from_rfc3339(&tcb_info_root.tcb_info.issue_date).unwrap();
+    let next_update_date = chrono::DateTime::parse_from_rfc3339(&tcb_info_root.tcb_info.next_update).unwrap();
+
+    // convert the issue_date and next_update_date to seconds since epoch
+    let issue_date_seconds = issue_date.timestamp();
+    let next_update_seconds = next_update_date.timestamp();
+
+    // check that the current time is between the issue_date and next_update_date
+    if current_time < issue_date_seconds || current_time > next_update_seconds {
+        return false;
+    }
+
+    // signature is a hex string, we'll convert it to bytes
+    // ZL: we'll assume that the signature is a P256 ECDSA signature
+    let tcb_info_root_signature_bytes = hex::decode(&tcb_info_root.signature).unwrap();
+    let tcb_info_root_signature_bytes: [u8; 64] = tcb_info_root_signature_bytes.try_into().unwrap();
+    let tcb_info_root_signature = Signature::from_bytes(&tcb_info_root_signature_bytes.into()).unwrap();
+
+    // verify that the tcb_info_root is signed by the root cert
+    let tcb_info_root_signature_data = serde_json::to_vec(&tcb_info_root.tcb_info).unwrap();
+
+    root_verifying_key.verify(&tcb_info_root_signature_data, &tcb_info_root_signature).is_ok()
+}
+
+fn validate_enclaveidentityroot(enclave_identity_root: &EnclaveIdentityRoot, root_verifying_key: &VerifyingKey, current_time: i64) -> bool {
+    // get tcb_info_root time
+    let issue_date = chrono::DateTime::parse_from_rfc3339(&enclave_identity_root.enclave_identity.issue_date).unwrap();
+    let next_update_date = chrono::DateTime::parse_from_rfc3339(&enclave_identity_root.enclave_identity.next_update).unwrap();
+
+    // convert the issue_date and next_update_date to seconds since epoch
+    let issue_date_seconds = issue_date.timestamp();
+    let next_update_seconds = next_update_date.timestamp();
+
+    // check that the current time is between the issue_date and next_update_date
+    if current_time < issue_date_seconds || current_time > next_update_seconds {
+        return false;
+    }
+
+    // signature is a hex string, we'll convert it to bytes
+    // ZL: we'll assume that the signature is a P256 ECDSA signature
+    let enclave_identity_root_signature_bytes = hex::decode(&enclave_identity_root.signature).unwrap();
+    let enclave_identity_root_signature_bytes: [u8; 64] = enclave_identity_root_signature_bytes.try_into().unwrap();
+    let enclave_identity_root_signature = Signature::from_bytes(&enclave_identity_root_signature_bytes.into()).unwrap();
+
+    // verify that the enclave_identity_root is signed by the root cert
+    let enclave_identity_root_signature_data = serde_json::to_vec(&enclave_identity_root.enclave_identity).unwrap();
+
+    root_verifying_key.verify(&enclave_identity_root_signature_data, &enclave_identity_root_signature).is_ok()
+}
+
+fn validate_qe_enclave(enclave_report: &SgxEnclaveReport, enclave_identity_root: &EnclaveIdentityRoot) -> bool {
+    let mrsigner_ok = enclave_report.mrsigner == hex::decode(&enclave_identity_root.enclave_identity.mrsigner).unwrap().as_slice();
+    let isvprodid_ok = enclave_report.isv_prod_id == enclave_identity_root.enclave_identity.isvprodid;
+
+    let attributes = hex::decode(&enclave_identity_root.enclave_identity.attributes).unwrap();
+    let attributes_mask = hex::decode(&enclave_identity_root.enclave_identity.attributes_mask).unwrap();
+    let masked_attributes = attributes.iter().zip(attributes_mask.iter()).map(|(a, m)| a & m).collect::<Vec<u8>>();
+    let masked_enclave_attributes = enclave_report.attributes.iter().zip(attributes_mask.iter()).map(|(a, m)| a & m).collect::<Vec<u8>>();
+    let enclave_attributes_ok = masked_enclave_attributes == masked_attributes;
+
+    let miscselect = hex::decode(&enclave_identity_root.enclave_identity.miscselect).unwrap();
+    let miscselect_mask = hex::decode(&enclave_identity_root.enclave_identity.miscselect_mask).unwrap();
+    let masked_miscselect = miscselect.iter().zip(miscselect_mask.iter()).map(|(a, m)| a & m).collect::<Vec<u8>>();
+    let masked_enclave_miscselect = enclave_report.misc_select.iter().zip(miscselect_mask.iter()).map(|(a, m)| a & m).collect::<Vec<u8>>();
+    let enclave_miscselect_ok = masked_enclave_miscselect == masked_miscselect;
+
+    let tcb_status = get_enclaveidentity_tcb_status(enclave_report, enclave_identity_root);
+
+    mrsigner_ok && isvprodid_ok && enclave_attributes_ok && enclave_miscselect_ok && tcb_status == TcbStatus::OK
+}
+
+fn get_enclaveidentity_tcb_status(enclave_report: &SgxEnclaveReport, enclave_identity_root: &EnclaveIdentityRoot) -> TcbStatus {
+    for tcb_level in enclave_identity_root.enclave_identity.tcb_levels.iter() {
+        if tcb_level.tcb.isvsvn <= enclave_report.isv_svn {
+            let tcb_status = match &tcb_level.tcb_status[..] {
+                "UpToDate" => TcbStatus::OK,
+                "SWHardeningNeeded" => TcbStatus::TcbSwHardeningNeeded,
+                "ConfigurationAndSWHardeningNeeded" => TcbStatus::TcbConfigurationAndSwHardeningNeeded,
+                "ConfigurationNeeded" => TcbStatus::TcbConfigurationNeeded,
+                "OutOfDate" => TcbStatus::TcbOutOfDate,
+                "OutOfDateConfigurationNeeded" => TcbStatus::TcbOutOfDateConfigurationNeeded,
+                "Revoked" => TcbStatus::TcbRevoked,
+                _ => TcbStatus::TcbUnrecognized,
+            };
+            return tcb_status;
+        }
+    }
+
+    TcbStatus::TcbUnrecognized
+}
+
+fn verify_qe_report_data(qe_info: &SgxQuoteSignatureData) -> bool {
+    let mut verification_data = Vec::new();
+    verification_data.extend_from_slice(&qe_info.ecdsa_attestation_key);
+    verification_data.extend_from_slice(&qe_info.qe_auth_data.data);
+
+    let mut hasher = Sha256::new();
+    hasher.update(&verification_data);
+    let verification_hash: [u8; 32] = hasher.finalize().into();
+    qe_info.qe_report.report_data[..32] == verification_hash
+}
+
+// implement qeidentity check (done)
+// implement qe_report_data check (report_data is the hash of the isv_pubkey || qe_authdata)
+// implement VerifiedOutput serialization / deserialization
+// 
+pub fn verify_quote<'a>(quote: &SgxQuote, tcb_info_root: &TcbInfoRoot, enclave_identity_root: &EnclaveIdentityRoot, signing_cert: &X509Certificate<'a>, root_cert: &X509Certificate<'a>, current_time: i64) -> VerifiedOutput {
+
+    let root_cert_public_key = root_cert.public_key().subject_public_key.as_ref();
+    // let root_verifying_key = VerifyingKey::from_sec1_bytes(root_cert_public_key).unwrap();
+
+    // verify that signing_verifying_key is signed by the root cert
+    assert!(verify_certificate(signing_cert, root_cert_public_key));
+    let signing_cert_public_key = signing_cert.public_key().subject_public_key.as_ref();
+    let signing_verifying_key = VerifyingKey::from_sec1_bytes(signing_cert_public_key).unwrap();
+
+
+    // check that tcb_info_root and enclave_identity_root are valid
+    assert!(validate_tcbinforoot(&tcb_info_root, &signing_verifying_key, current_time));
+    assert!(validate_enclaveidentityroot(&enclave_identity_root, &signing_verifying_key, current_time));
+
     // we'll extract the ISV (local enclave AKA the enclave that is attesting) report from the quote 
     let isv_enclave_report = quote.isv_enclave_report;
-
-    // check that the ISV enclave (local enclave) is valid
-    // we assume that there exists known good values of the enclave's measurement
-    // let isv_enclave_check_args = EnclaveReportArgs {
-    //     cpu_svn: None,
-    //     misc_select: None,
-    //     attributes: None,
-    //     mrenclave: Some(MRENCLAVE),
-    //     mrsigner: Some(MRSIGNER),
-    //     isv_prod_id: None,
-    //     isv_svn: None,
-    //     report_data: None,
-    // };
-    // assert!(verify_enclave_report(&isv_enclave_report, isv_enclave_check_args));
-
-    // at this point, the isv enclave reports matches what we think it is
-    // next is to verify the integrity of the report
 
     // check that the QE Report is correct
     // we'll first parse the signature into a ECDSA Quote signature data
@@ -518,13 +757,12 @@ pub fn verify_quote(quote: &SgxQuote, tcb_info_root: TcbInfoRoot) -> VerifiedOut
     // TODO: Add support for all other types
 
     assert_eq!(ecdsa_quote_signature_data.qe_cert_data.cert_data_type, 5);
-    let certchain_bytes = ecdsa_quote_signature_data.qe_cert_data.cert_data;
-    let certchain_pems = parse_pem(&certchain_bytes).unwrap();
+    let certchain_pems = parse_pem(&ecdsa_quote_signature_data.qe_cert_data.cert_data).unwrap();
     let certchain = parse_certchain(&certchain_pems);
     // verify that the cert chain is valid
     // we'll assume that the root cert is the last cert in the chain
     // TODO: Replace root cert here to be the actual root cert
-    let root_cert = certchain.last().unwrap();
+    // let root_cert = certchain.last().unwrap();
     assert!(verify_certchain(&certchain, root_cert));
 
     // get the leaf certificate
@@ -538,7 +776,6 @@ pub fn verify_quote(quote: &SgxQuote, tcb_info_root: TcbInfoRoot) -> VerifiedOut
     // println!("qe_report_bytes:: {:?}", hex::encode(qe_report_bytes));
     // println!("qe_report_hash:: {:?}", hex::encode(qe_report_hash));
 
-    println!("qeauthdata: {:?}", ecdsa_quote_signature_data.qe_auth_data);
     // verify the signature of the QE report
     let qe_report_signature = ecdsa_quote_signature_data.qe_report_signature;
     let qe_report_public_key = leaf_cert.public_key().subject_public_key.as_ref();
@@ -554,6 +791,13 @@ pub fn verify_quote(quote: &SgxQuote, tcb_info_root: TcbInfoRoot) -> VerifiedOut
     // isv_enclae is signed by the qe enclave
     // qe enclave is signed by intel
 
+    // ensure that qe enclave matches with qeidentity
+    assert!(validate_qe_enclave(&ecdsa_quote_signature_data.qe_report, &enclave_identity_root));
+    
+    // ensure that qe_report_data is correct
+    assert!(verify_qe_report_data(&ecdsa_quote_signature_data));
+
+
     // we'll create the VerifiedOutput struct that will be produced by this function
     // this allows anyone to perform application specific checks on information such as
     // mrenclave, mrsigner, tcbstatus, etc.
@@ -561,22 +805,19 @@ pub fn verify_quote(quote: &SgxQuote, tcb_info_root: TcbInfoRoot) -> VerifiedOut
     // extract the sgx extensions from the leaf certificate
     let sgx_extensions = extract_sgx_extension(&leaf_cert);
     // println!("sgx_extensions: {:?}", sgx_extensions);
-    let tcb_status = get_tcb_status(sgx_extensions, tcb_info_root);
-
-    let report_data_upper = quote.isv_enclave_report.report_data[0..32].try_into().unwrap();
-    let report_data_lower = quote.isv_enclave_report.report_data[32..64].try_into().unwrap();
+    let tcb_status = get_tcbrootinfo_tcb_status(&sgx_extensions, &tcb_info_root);
 
 
     VerifiedOutput {
         tcb_status,
         mr_enclave: isv_enclave_report.mrenclave,
         mr_signer: isv_enclave_report.mrsigner,
-        report_data_lower,
-        report_data_upper,
+        report_data: quote.isv_enclave_report.report_data,
+        fmspc: sgx_extensions.fmspc,
     }
 }
 
-pub fn get_tcb_status(sgx_extensions: SgxExtensions, tcb_info_root: TcbInfoRoot) -> TcbStatus {
+pub fn get_tcbrootinfo_tcb_status(sgx_extensions: &SgxExtensions, tcb_info_root: &TcbInfoRoot) -> TcbStatus {
     // we'll make sure the tcbinforoot is valid
     // check that fmspc is valid
     // check that pceid is valid
@@ -910,6 +1151,7 @@ pub fn get_asn1_bytes<'a>(bytes: &'a[u8], oid_str: &str) -> (&'a[u8], Vec<u8>) {
 
 mod tests {
 
+    #[allow(unused_imports)]
     use super::*;
     // use oid_registry::{OID_SIG_ECDSA_WITH_SHA256, OID_SIG_ECDSA_WITH_SHA384};
     // use oid_registry::asn1_rs::{Sequence, FromBer, oid, Error};
@@ -918,9 +1160,9 @@ mod tests {
     fn test_certchain_parsing() {
         let certchain_bytes = hex::decode("2d2d2d2d2d424547494e2043455254494649434154452d2d2d2d2d0a4d494945386a4343424a6d674177494241674956414b7750766270377a6f7a50754144646b792b6f526e356f36704d754d416f4743437147534d343942414d430a4d484178496a416742674e5642414d4d47556c756447567349464e4857434251513073675547786864475a76636d306751304578476a415942674e5642416f4d0a45556c756447567349454e76636e4276636d4630615739754d5251774567594456515148444174545957353059534244624746795954454c4d416b47413155450a4341774351304578437a414a42674e5642415954416c56544d4234584454497a4d4467794e4449784d7a557a4d6c6f5844544d774d4467794e4449784d7a557a0a4d6c6f77634445694d434147413155454177775a535735305a5777675530645949464244537942445a584a3061575a70593246305a5445614d426747413155450a43677752535735305a577767513239796347397959585270623234784644415342674e564241634d43314e68626e526849454e7359584a684d517377435159440a5651514944414a445154454c4d416b474131554542684d4356564d775754415442676371686b6a4f5051494242676771686b6a4f50514d4242774e43414154450a764b6a754b66376969723832686d2b4d5a4151452b6847643349716d53396235634e63484a754b7a5a445970626f35496a344c7a7176704f503830706f4152730a59504233594e355537704d3777644936314b66716f344944446a434341776f77487759445652306a42426777466f41556c5739647a62306234656c4153636e550a3944504f4156634c336c5177617759445652306642475177596a42676f46366758495a616148523063484d364c79396863476b7564484a316333526c5a484e6c0a636e5a705932567a4c6d6c75644756734c6d4e766253397a5a3367765932567964476c6d61574e6864476c76626939324d7939775932746a636d772f593245390a6347786864475a76636d306d5a57356a62325270626d63395a4756794d4230474131556444675157424251695a7667373930317a3171554d3874534c754358580a6571314c6f54414f42674e56485138424166384542414d434273417744415944565230544151482f4241497741444343416a734743537147534962345451454e0a41515343416977776767496f4d42344743697147534962345451454e41514545454358343464705036434c5154772f785543575448306b776767466c42676f710a686b69472b453042445145434d4949425654415142677371686b69472b45304244514543415149424444415142677371686b69472b45304244514543416749420a4444415142677371686b69472b4530424451454341774942417a415142677371686b69472b4530424451454342414942417a415242677371686b69472b4530420a4451454342514943415038774551594c4b6f5a496876684e41513042416759434167442f4d42414743797147534962345451454e41514948416745424d4241470a43797147534962345451454e41514949416745414d42414743797147534962345451454e4151494a416745414d42414743797147534962345451454e4151494b0a416745414d42414743797147534962345451454e4151494c416745414d42414743797147534962345451454e4151494d416745414d42414743797147534962340a5451454e4151494e416745414d42414743797147534962345451454e4151494f416745414d42414743797147534962345451454e41514950416745414d4241470a43797147534962345451454e41514951416745414d42414743797147534962345451454e415149524167454e4d42384743797147534962345451454e415149530a4242414d44414d442f2f38424141414141414141414141414d42414743697147534962345451454e41514d45416741414d42514743697147534962345451454e0a4151514542674267616741414144415042676f71686b69472b45304244514546436745424d42344743697147534962345451454e4151594545424531784169510a72743945363234433159516b497034775241594b4b6f5a496876684e41513042427a41324d42414743797147534962345451454e415163424151482f4d4241470a43797147534962345451454e41516343415145414d42414743797147534962345451454e41516344415145414d416f4743437147534d343942414d43413063410a4d45514349445a6f63514c6478362b4f2b586d4f6b766f6b654133345a617261342b6539534e5877344b68396d5876574169415479695a6e495932474f3466670a4938673342666c4e434f56446e42505270507559377274484e77335470513d3d0a2d2d2d2d2d454e442043455254494649434154452d2d2d2d2d0a2d2d2d2d2d424547494e2043455254494649434154452d2d2d2d2d0a4d4949436c6a4343416a32674177494241674956414a567658633239472b487051456e4a3150517a7a674658433935554d416f4743437147534d343942414d430a4d476778476a415942674e5642414d4d45556c756447567349464e48574342536232393049454e424d526f77474159445651514b4442464a626e526c624342440a62334a7762334a6864476c76626a45554d424947413155454277774c553246756447456751327868636d4578437a414a42674e564241674d416b4e424d5173770a435159445651514745774a56557a4165467730784f4441314d6a45784d4455774d5442614677307a4d7a41314d6a45784d4455774d5442614d484178496a41670a42674e5642414d4d47556c756447567349464e4857434251513073675547786864475a76636d306751304578476a415942674e5642416f4d45556c75644756730a49454e76636e4276636d4630615739754d5251774567594456515148444174545957353059534244624746795954454c4d416b474131554543417743513045780a437a414a42674e5642415954416c56544d466b77457759484b6f5a497a6a3043415159494b6f5a497a6a304441516344516741454e53422f377432316c58534f0a3243757a7078773734654a423732457944476757357258437478327456544c7136684b6b367a2b5569525a436e71523770734f766771466553786c6d546c4a6c0a65546d693257597a33714f42757a43427544416642674e5648534d4547444157674251695a517a575770303069664f44744a5653763141624f536347724442530a42674e5648523845537a424a4d45656752614244686b466f64485277637a6f764c324e6c636e52705a6d6c6a5958526c63793530636e567a6447566b633256790a646d6c6a5a584d75615735305a577775593239744c306c756447567355306459556d397664454e424c6d526c636a416442674e5648513445466751556c5739640a7a62306234656c4153636e553944504f4156634c336c517744675944565230504151482f42415144416745474d42494741315564457745422f7751494d4159420a4166384341514177436759494b6f5a497a6a30454177494452774177524149675873566b6930772b6936565947573355462f32327561586530594a446a3155650a6e412b546a44316169356343494359623153416d4435786b66545670766f34556f79695359787244574c6d5552344349394e4b7966504e2b0a2d2d2d2d2d454e442043455254494649434154452d2d2d2d2d0a2d2d2d2d2d424547494e2043455254494649434154452d2d2d2d2d0a4d4949436a7a4343416a53674177494241674955496d554d316c71644e496e7a6737535655723951477a6b6e42717777436759494b6f5a497a6a3045417749770a614445614d4267474131554541777752535735305a5777675530645949464a766233516751304578476a415942674e5642416f4d45556c756447567349454e760a636e4276636d4630615739754d5251774567594456515148444174545957353059534244624746795954454c4d416b47413155454341774351304578437a414a0a42674e5642415954416c56544d423458445445344d4455794d5445774e4455784d466f58445451354d54497a4d54497a4e546b314f566f77614445614d4267470a4131554541777752535735305a5777675530645949464a766233516751304578476a415942674e5642416f4d45556c756447567349454e76636e4276636d46300a615739754d5251774567594456515148444174545957353059534244624746795954454c4d416b47413155454341774351304578437a414a42674e56424159540a416c56544d466b77457759484b6f5a497a6a3043415159494b6f5a497a6a3044415163445167414543366e45774d4449595a4f6a2f69505773437a61454b69370a314f694f534c52466857476a626e42564a66566e6b59347533496a6b4459594c304d784f346d717379596a6c42616c54565978465032734a424b357a6c4b4f420a757a43427544416642674e5648534d4547444157674251695a517a575770303069664f44744a5653763141624f5363477244425342674e5648523845537a424a0a4d45656752614244686b466f64485277637a6f764c324e6c636e52705a6d6c6a5958526c63793530636e567a6447566b63325679646d6c6a5a584d75615735300a5a577775593239744c306c756447567355306459556d397664454e424c6d526c636a416442674e564851344546675155496d554d316c71644e496e7a673753560a55723951477a6b6e4271777744675944565230504151482f42415144416745474d42494741315564457745422f7751494d4159424166384341514577436759490a4b6f5a497a6a3045417749445351417752674968414f572f35516b522b533943695344634e6f6f774c7550524c735747662f59693747535839344267775477670a41694541344a306c72486f4d732b586f356f2f7358364f39515778485241765a55474f6452513763767152586171493d0a2d2d2d2d2d454e442043455254494649434154452d2d2d2d2d0a00").unwrap();
         let certchain_pems = parse_pem(&certchain_bytes).unwrap();
-        let certs = parse_certchain(&certchain_pems);
+        let _certs = parse_certchain(&certchain_pems);
         let root_cert_bytes = hex::decode("2d2d2d2d2d424547494e2043455254494649434154452d2d2d2d2d0a4d4949436a7a4343416a53674177494241674955496d554d316c71644e496e7a6737535655723951477a6b6e42717777436759494b6f5a497a6a3045417749770a614445614d4267474131554541777752535735305a5777675530645949464a766233516751304578476a415942674e5642416f4d45556c756447567349454e760a636e4276636d4630615739754d5251774567594456515148444174545957353059534244624746795954454c4d416b47413155454341774351304578437a414a0a42674e5642415954416c56544d423458445445344d4455794d5445774e4455784d466f58445451354d54497a4d54497a4e546b314f566f77614445614d4267470a4131554541777752535735305a5777675530645949464a766233516751304578476a415942674e5642416f4d45556c756447567349454e76636e4276636d46300a615739754d5251774567594456515148444174545957353059534244624746795954454c4d416b47413155454341774351304578437a414a42674e56424159540a416c56544d466b77457759484b6f5a497a6a3043415159494b6f5a497a6a3044415163445167414543366e45774d4449595a4f6a2f69505773437a61454b69370a314f694f534c52466857476a626e42564a66566e6b59347533496a6b4459594c304d784f346d717379596a6c42616c54565978465032734a424b357a6c4b4f420a757a43427544416642674e5648534d4547444157674251695a517a575770303069664f44744a5653763141624f5363477244425342674e5648523845537a424a0a4d45656752614244686b466f64485277637a6f764c324e6c636e52705a6d6c6a5958526c63793530636e567a6447566b63325679646d6c6a5a584d75615735300a5a577775593239744c306c756447567355306459556d397664454e424c6d526c636a416442674e564851344546675155496d554d316c71644e496e7a673753560a55723951477a6b6e4271777744675944565230504151482f42415144416745474d42494741315564457745422f7751494d4159424166384341514577436759490a4b6f5a497a6a3045417749445351417752674968414f572f35516b522b533943695344634e6f6f774c7550524c735747662f59693747535839344267775477670a41694541344a306c72486f4d732b586f356f2f7358364f39515778485241765a55474f6452513763767152586171493d0a2d2d2d2d2d454e442043455254494649434154452d2d2d2d2d0a").unwrap();
-        let root_cert_pem = parse_pem(&root_cert_bytes).unwrap().pop().unwrap();
+        let _root_cert_pem = parse_pem(&root_cert_bytes).unwrap().pop().unwrap();
         // let root_cert = root_cert_pem.parse_x509().unwrap();
         // println!("root cert: {:?}", root_cert.serial);
 
@@ -945,13 +1187,30 @@ mod tests {
 
     #[test]
     fn test_verify() {
+        let root_cert_der= include_bytes!("../../data/Intel_SGX_Provisioning_Certification_RootCA.cer");
+        let (_, root_cert) = X509Certificate::from_der(root_cert_der).unwrap();
+
+        let signing_cert_pem = include_bytes!("../../data/signing_cert.pem");
+        let signing_cert_pem = parse_pem(signing_cert_pem).unwrap();
+        let signing_cert = signing_cert_pem[0].parse_x509().unwrap();
+        
+        println!("signing_cert tbs raw: {:?}", signing_cert.tbs_certificate.as_ref());
+
+        let enclave_identity_root: EnclaveIdentityRoot = serde_json::from_str(include_str!("../../data/qeidentity.json")).unwrap();
+
+        let current_time = chrono::Utc::now().timestamp();
+
         let json_str = include_str!("../../data/tcbinfo.json");
         let tcb_info_root: TcbInfoRoot = serde_json::from_str(json_str).unwrap();
         let dcap_quote_bytes = hex::decode("030002000000000009000e00939a7233f79c4ca9940a0db3957f0607ad04024c9dfb382baf51ca3e5d6cb6e6000000000c0c100fffff0100000000000000000000000000000000000000000000000000000000000000000000000000000000000500000000000000e700000000000000a4f45c39dac622cb1dd32ddb35a52ec92db41d0fa88a1c911c49e59c534f61cd00000000000000000000000000000000000000000000000000000000000000001bda23eb3a807dfe735ddcebbfa2eac05e04a00df2804296612f770b594180ba0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ca100000e78d2532cbef391dea9a477119bc505b47e187f6f045636cce8bcf41604a099232eee31b3ef3827c442eb5d5981610480deb0625ed4b01c1ac2b0fb43e05efdeab8af342a611fb608193d9a47b8111654172adf2dabd2d428d28ebe094b9baa1f8f7e240b015af174d4f58a6b201946eee2097af02ed554909779ea2d9f3c1020c0c100fffff0100000000000000000000000000000000000000000000000000000000000000000000000000000000001500000000000000e700000000000000192aa50ce1c0cef03ccf89e7b5b16b0d7978f5c2b1edcf774d87702e8154d8bf00000000000000000000000000000000000000000000000000000000000000008c4f5775d796503e96137f77c68a829a0056ac8ded70140b081b094490c57bff00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a82754acc7010b3c087c6425ccf47033f711fa44776c6df3cf744864a063657b00000000000000000000000000000000000000000000000000000000000000006cf7ecfde138b32bbf6aec5e260f8bb6277cc2876ea144c3995d2afc0e6baa3525d91884672bf2832c23a6ebf85a165b45af53c836a31168ff7deaec0dd9c82c2000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f0500620e00002d2d2d2d2d424547494e2043455254494649434154452d2d2d2d2d0a4d494945386a4343424a6d674177494241674956414b7750766270377a6f7a50754144646b792b6f526e356f36704d754d416f4743437147534d343942414d430a4d484178496a416742674e5642414d4d47556c756447567349464e4857434251513073675547786864475a76636d306751304578476a415942674e5642416f4d0a45556c756447567349454e76636e4276636d4630615739754d5251774567594456515148444174545957353059534244624746795954454c4d416b47413155450a4341774351304578437a414a42674e5642415954416c56544d4234584454497a4d4467794e4449784d7a557a4d6c6f5844544d774d4467794e4449784d7a557a0a4d6c6f77634445694d434147413155454177775a535735305a5777675530645949464244537942445a584a3061575a70593246305a5445614d426747413155450a43677752535735305a577767513239796347397959585270623234784644415342674e564241634d43314e68626e526849454e7359584a684d517377435159440a5651514944414a445154454c4d416b474131554542684d4356564d775754415442676371686b6a4f5051494242676771686b6a4f50514d4242774e43414154450a764b6a754b66376969723832686d2b4d5a4151452b6847643349716d53396235634e63484a754b7a5a445970626f35496a344c7a7176704f503830706f4152730a59504233594e355537704d3777644936314b66716f344944446a434341776f77487759445652306a42426777466f41556c5739647a62306234656c4153636e550a3944504f4156634c336c5177617759445652306642475177596a42676f46366758495a616148523063484d364c79396863476b7564484a316333526c5a484e6c0a636e5a705932567a4c6d6c75644756734c6d4e766253397a5a3367765932567964476c6d61574e6864476c76626939324d7939775932746a636d772f593245390a6347786864475a76636d306d5a57356a62325270626d63395a4756794d4230474131556444675157424251695a7667373930317a3171554d3874534c754358580a6571314c6f54414f42674e56485138424166384542414d434273417744415944565230544151482f4241497741444343416a734743537147534962345451454e0a41515343416977776767496f4d42344743697147534962345451454e41514545454358343464705036434c5154772f785543575448306b776767466c42676f710a686b69472b453042445145434d4949425654415142677371686b69472b45304244514543415149424444415142677371686b69472b45304244514543416749420a4444415142677371686b69472b4530424451454341774942417a415142677371686b69472b4530424451454342414942417a415242677371686b69472b4530420a4451454342514943415038774551594c4b6f5a496876684e41513042416759434167442f4d42414743797147534962345451454e41514948416745424d4241470a43797147534962345451454e41514949416745414d42414743797147534962345451454e4151494a416745414d42414743797147534962345451454e4151494b0a416745414d42414743797147534962345451454e4151494c416745414d42414743797147534962345451454e4151494d416745414d42414743797147534962340a5451454e4151494e416745414d42414743797147534962345451454e4151494f416745414d42414743797147534962345451454e41514950416745414d4241470a43797147534962345451454e41514951416745414d42414743797147534962345451454e415149524167454e4d42384743797147534962345451454e415149530a4242414d44414d442f2f38424141414141414141414141414d42414743697147534962345451454e41514d45416741414d42514743697147534962345451454e0a4151514542674267616741414144415042676f71686b69472b45304244514546436745424d42344743697147534962345451454e4151594545424531784169510a72743945363234433159516b497034775241594b4b6f5a496876684e41513042427a41324d42414743797147534962345451454e415163424151482f4d4241470a43797147534962345451454e41516343415145414d42414743797147534962345451454e41516344415145414d416f4743437147534d343942414d43413063410a4d45514349445a6f63514c6478362b4f2b586d4f6b766f6b654133345a617261342b6539534e5877344b68396d5876574169415479695a6e495932474f3466670a4938673342666c4e434f56446e42505270507559377274484e77335470513d3d0a2d2d2d2d2d454e442043455254494649434154452d2d2d2d2d0a2d2d2d2d2d424547494e2043455254494649434154452d2d2d2d2d0a4d4949436c6a4343416a32674177494241674956414a567658633239472b487051456e4a3150517a7a674658433935554d416f4743437147534d343942414d430a4d476778476a415942674e5642414d4d45556c756447567349464e48574342536232393049454e424d526f77474159445651514b4442464a626e526c624342440a62334a7762334a6864476c76626a45554d424947413155454277774c553246756447456751327868636d4578437a414a42674e564241674d416b4e424d5173770a435159445651514745774a56557a4165467730784f4441314d6a45784d4455774d5442614677307a4d7a41314d6a45784d4455774d5442614d484178496a41670a42674e5642414d4d47556c756447567349464e4857434251513073675547786864475a76636d306751304578476a415942674e5642416f4d45556c75644756730a49454e76636e4276636d4630615739754d5251774567594456515148444174545957353059534244624746795954454c4d416b474131554543417743513045780a437a414a42674e5642415954416c56544d466b77457759484b6f5a497a6a3043415159494b6f5a497a6a304441516344516741454e53422f377432316c58534f0a3243757a7078773734654a423732457944476757357258437478327456544c7136684b6b367a2b5569525a436e71523770734f766771466553786c6d546c4a6c0a65546d693257597a33714f42757a43427544416642674e5648534d4547444157674251695a517a575770303069664f44744a5653763141624f536347724442530a42674e5648523845537a424a4d45656752614244686b466f64485277637a6f764c324e6c636e52705a6d6c6a5958526c63793530636e567a6447566b633256790a646d6c6a5a584d75615735305a577775593239744c306c756447567355306459556d397664454e424c6d526c636a416442674e5648513445466751556c5739640a7a62306234656c4153636e553944504f4156634c336c517744675944565230504151482f42415144416745474d42494741315564457745422f7751494d4159420a4166384341514177436759494b6f5a497a6a30454177494452774177524149675873566b6930772b6936565947573355462f32327561586530594a446a3155650a6e412b546a44316169356343494359623153416d4435786b66545670766f34556f79695359787244574c6d5552344349394e4b7966504e2b0a2d2d2d2d2d454e442043455254494649434154452d2d2d2d2d0a2d2d2d2d2d424547494e2043455254494649434154452d2d2d2d2d0a4d4949436a7a4343416a53674177494241674955496d554d316c71644e496e7a6737535655723951477a6b6e42717777436759494b6f5a497a6a3045417749770a614445614d4267474131554541777752535735305a5777675530645949464a766233516751304578476a415942674e5642416f4d45556c756447567349454e760a636e4276636d4630615739754d5251774567594456515148444174545957353059534244624746795954454c4d416b47413155454341774351304578437a414a0a42674e5642415954416c56544d423458445445344d4455794d5445774e4455784d466f58445451354d54497a4d54497a4e546b314f566f77614445614d4267470a4131554541777752535735305a5777675530645949464a766233516751304578476a415942674e5642416f4d45556c756447567349454e76636e4276636d46300a615739754d5251774567594456515148444174545957353059534244624746795954454c4d416b47413155454341774351304578437a414a42674e56424159540a416c56544d466b77457759484b6f5a497a6a3043415159494b6f5a497a6a3044415163445167414543366e45774d4449595a4f6a2f69505773437a61454b69370a314f694f534c52466857476a626e42564a66566e6b59347533496a6b4459594c304d784f346d717379596a6c42616c54565978465032734a424b357a6c4b4f420a757a43427544416642674e5648534d4547444157674251695a517a575770303069664f44744a5653763141624f5363477244425342674e5648523845537a424a0a4d45656752614244686b466f64485277637a6f764c324e6c636e52705a6d6c6a5958526c63793530636e567a6447566b63325679646d6c6a5a584d75615735300a5a577775593239744c306c756447567355306459556d397664454e424c6d526c636a416442674e564851344546675155496d554d316c71644e496e7a673753560a55723951477a6b6e4271777744675944565230504151482f42415144416745474d42494741315564457745422f7751494d4159424166384341514577436759490a4b6f5a497a6a3045417749445351417752674968414f572f35516b522b533943695344634e6f6f774c7550524c735747662f59693747535839344267775477670a41694541344a306c72486f4d732b586f356f2f7358364f39515778485241765a55474f6452513763767152586171493d0a2d2d2d2d2d454e442043455254494649434154452d2d2d2d2d0a00").unwrap();
         let dcap_quote = SgxQuote::from_bytes(&dcap_quote_bytes);
-        let verified_output = verify_quote(&dcap_quote, tcb_info_root);
+        let verified_output = verify_quote(&dcap_quote, &tcb_info_root, &enclave_identity_root, &signing_cert, &root_cert, current_time);
         // print!("{:?}", dcap_quote);
         println!("{:?}", verified_output);
+        let root_hash = hash_cert_keccak256(&root_cert);
+        let sign_hash = hash_cert_keccak256(&signing_cert);
+        println!("{:?}", root_hash);
+        println!("{:?}", sign_hash);
     }
 
     #[test]
