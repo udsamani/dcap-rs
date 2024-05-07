@@ -18,7 +18,7 @@ mod tests {
 
     #[test]
     fn test_sgx_dcap_quote() {
-        let root_cert_der= include_bytes!("../data/IntelSGXRootCA.der");
+        let root_cert_der= include_bytes!("../data/Intel_SGX_Provisioning_Certification_RootCA.cer");
         let (_, root_cert) = X509Certificate::from_der(root_cert_der).unwrap();
 
         let signing_cert_pem = include_bytes!("../data/signing_cert.pem");
@@ -27,7 +27,7 @@ mod tests {
 
         let enclave_identity_root: EnclaveIdentityRoot = serde_json::from_str(include_str!("../data/qeidentity.json")).unwrap();
 
-        let current_time = chrono::Utc::now().timestamp();
+        let current_time = chrono::Utc::now().timestamp() as u64;
 
         let json_str = include_str!("../data/tcbinfo.json");
         let tcb_info_root: TcbInfoRoot = serde_json::from_str(json_str).unwrap();

@@ -3,11 +3,12 @@ use serde::{Deserialize, Serialize};
 
 use sha2::{Sha256, Digest};
 use sha3::Keccak256;
+use p256::ecdsa::{VerifyingKey, signature::Verifier, Signature};
+
 use x509_parser::{der_parser::asn1_rs::{Boolean, Enumerated}, prelude::*};
 use oid_registry::asn1_rs;
 use asn1_rs::{oid, Sequence, FromDer, Oid, Integer, OctetString};
 
-use p256::ecdsa::{VerifyingKey, signature::Verifier, Signature};
 
 
 // https://download.01.org/intel-sgx/latest/dcap-latest/linux/docs/Intel_SGX_ECDSA_QuoteLibReference_DCAP_API.pdf
@@ -717,7 +718,6 @@ fn verify_qe_report_data(qe_info: &SgxQuoteSignatureData) -> bool {
 // implement VerifiedOutput serialization / deserialization
 // 
 pub fn verify_quote<'a>(quote: &SgxQuote, tcb_info_root: &TcbInfoRoot, enclave_identity_root: &EnclaveIdentityRoot, signing_cert: &X509Certificate<'a>, root_cert: &X509Certificate<'a>, current_time: u64) -> VerifiedOutput {
-
     let root_cert_public_key = root_cert.public_key().subject_public_key.as_ref();
     // let root_verifying_key = VerifyingKey::from_sec1_bytes(root_cert_public_key).unwrap();
 
@@ -746,7 +746,6 @@ pub fn verify_quote<'a>(quote: &SgxQuote, tcb_info_root: &TcbInfoRoot, enclave_i
     pubkey[1..65].copy_from_slice(&ecdsa_quote_signature_data.ecdsa_attestation_key);
     let isv_signature = Signature::from_bytes(&ecdsa_quote_signature_data.isv_enclave_report_signature.into()).unwrap();
     let isv_verifying_key = VerifyingKey::from_sec1_bytes(&pubkey).unwrap();
-    // println!("data: {:?}", hex::encode(sign_data));
     // println!("signature: {:?}", hex::encode(isv_signature.to_bytes()));
     // println!("verifying_key: {:?}", isv_verifying_key);
     assert!(isv_verifying_key.verify(&data, &isv_signature).is_ok());
@@ -769,12 +768,8 @@ pub fn verify_quote<'a>(quote: &SgxQuote, tcb_info_root: &TcbInfoRoot, enclave_i
     let leaf_cert = parse_certchain(&certchain_pems)[0].clone();
 
     // calculate the qe_report_hash
-    // let mut hasher = Sha256::new();
     let qe_report_bytes = ecdsa_quote_signature_data.qe_report.to_bytes();
-    // hasher.update(&qe_report_bytes);
-    // let qe_report_hash = hasher.finalize();
     // println!("qe_report_bytes:: {:?}", hex::encode(qe_report_bytes));
-    // println!("qe_report_hash:: {:?}", hex::encode(qe_report_hash));
 
     // verify the signature of the QE report
     let qe_report_signature = ecdsa_quote_signature_data.qe_report_signature;

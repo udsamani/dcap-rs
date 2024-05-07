@@ -11,9 +11,10 @@ crate-type = ["lib"]
 [dependencies]
 hex          = "0.4"
 x509-parser  = "0.15.1"
-p256         = { git = "https://github.com/risc0/RustCrypto-elliptic-curves", tag = "p256/v0.13.2" }
-sha2         = { git = "https://github.com/risc0/RustCrypto-hashes", tag = "sha2-v0.10.8" }
-sha3         = { git = "https://github.com/risc0/RustCrypto-hashes", tag = "sha3-v0.10.6" }
 serde        = { version = "1.0", features = ["derive"] }
 serde_json   = "1.0"
 chrono       = "0.4"
+
+p256         = { git = "https://github.com/RustCrypto/elliptic-curves.git" }
+sha2         = { git = "https://github.com/RustCrypto/hashes.git" }
+sha3         = { git = "https://github.com/RustCrypto/hashes.git" }
