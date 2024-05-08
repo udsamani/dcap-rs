@@ -31,44 +31,6 @@ pub struct PckPlatformConfiguration {
     pub smt_enabled: Option<bool>,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EnclaveIdentityRoot {
-    pub enclave_identity: EnclaveIdentity,
-    pub signature: String,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EnclaveIdentity {
-    pub id: String,
-    pub version: u64,
-    pub issue_date: String,
-    pub next_update: String,
-    pub tcb_evaluation_data_number: u64,
-    pub miscselect: String,
-    pub miscselect_mask: String,
-    pub attributes: String,
-    pub attributes_mask: String,
-    pub mrsigner: String,
-    pub isvprodid: u16,
-    pub tcb_levels: Vec<EnclaveIdentityTcbLevel>,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EnclaveIdentityTcbLevel {
-    pub tcb: EnclaveIdentityTcb,
-    pub tcb_date: String,
-    pub tcb_status: String,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EnclaveIdentityTcb {
-    pub isvsvn: u16,
-}
-
 // serialization:
 // [tcb_status] [mr_enclave] [mr_signer] [report_data]
 // [ 1 byte   ] [32 bytes  ] [32 bytes ] [64 bytes   ]
