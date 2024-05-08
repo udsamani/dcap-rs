@@ -205,6 +205,20 @@ use serde::{Deserialize, Serialize};
 // 
 //                                     "Revoked" - TCB level of SGX platform is revoked.
 //                                     The platform is not trustworthy.
+//                             advisoryIDs:
+//                                 type: array
+//                                 description: >-
+//                                     Array of Advisory IDs referring to Intel security advisories that
+//                                     provide insight into the reason(s) for the value of tcbStatus for
+//                                     this TCB level when the value is not UpToDate.
+// 
+//                                     Note: The value can be different for different
+//                                     FMSPCs.
+// 
+//                                     This field is optional. It will be present only
+//                                     if the list of Advisory IDs is not empty.
+//                                 items:
+//                                     type: string
 //         signature:
 //             type: string
 //             description: >-
