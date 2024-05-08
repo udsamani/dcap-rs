@@ -261,5 +261,16 @@ pub struct TcbLevel {
     pub sgxtcbcomp14svn: u64,
     pub sgxtcbcomp15svn: u64,
     pub sgxtcbcomp16svn: u64,
-    pub cpusvn: Option<[u8; 16]>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum TcbStatus {
+    OK,
+    TcbSwHardeningNeeded,
+    TcbConfigurationAndSwHardeningNeeded,
+    TcbConfigurationNeeded,
+    TcbOutOfDate,
+    TcbOutOfDateConfigurationNeeded,
+    TcbRevoked,
+    TcbUnrecognized
 }
