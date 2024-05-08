@@ -3,9 +3,10 @@ pub mod types;
 
 #[cfg(test)]
 mod tests {
-    use crate::quote::{verify_quote, EnclaveIdentityRoot, parse_pem};
+    use crate::quote::{verify_quote, parse_pem};
     use crate::types::quote::{SgxQuote, SgxEnclaveReport};
     use crate::types::tcbinfo::TcbInfoV2;
+    use crate::types::qve_identity::QveIdentityV2;
     use x509_parser::prelude::*;
 
 
@@ -27,7 +28,7 @@ mod tests {
         let signing_cert_pem = parse_pem(signing_cert_pem).unwrap();
         let signing_cert = signing_cert_pem[0].parse_x509().unwrap();
 
-        let enclave_identity_root: EnclaveIdentityRoot = serde_json::from_str(include_str!("../data/qeidentity.json")).unwrap();
+        let enclave_identity_root: QveIdentityV2 = serde_json::from_str(include_str!("../data/qeidentity.json")).unwrap();
 
         let current_time = chrono::Utc::now().timestamp() as u64;
 

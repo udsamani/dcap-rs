@@ -1,6 +1,4 @@
 
-use serde::{Deserialize, Serialize};
-
 use sha2::{Sha256, Digest};
 use sha3::Keccak256;
 use p256::ecdsa::{VerifyingKey, signature::Verifier, Signature};
@@ -11,91 +9,9 @@ use asn1_rs::{oid, Sequence, FromDer, Oid, Integer, OctetString};
 
 use crate::types::quote::{SgxEnclaveReport, SgxQuote, SgxQuoteSignatureData};
 use crate::types::tcbinfo::{TcbStatus, SgxExtensionTcbLevel, TcbInfoV2};
+use crate::types::qve_identity::QveIdentityV2;
+use crate::types::{VerifiedOutput, SgxExtensions, PckPlatformConfiguration};
 
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SgxExtensions {
-    pub ppid: [u8; 16],
-    pub tcb: SgxExtensionTcbLevel,
-    pub pceid: [u8; 2],
-    pub fmspc: [u8; 6],
-    pub sgx_type: u32,
-    pub platform_instance_id: Option<[u8; 16]>,
-    pub configuration: Option<PckPlatformConfiguration>,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct PckPlatformConfiguration {
-    pub dynamic_platform: Option<bool>,
-    pub cached_keys: Option<bool>,
-    pub smt_enabled: Option<bool>,
-}
-
-// serialization:
-// [tcb_status] [mr_enclave] [mr_signer] [report_data]
-// [ 1 byte   ] [32 bytes  ] [32 bytes ] [64 bytes   ]
-// total: 129 bytes
-#[derive(Clone, Debug)]
-pub struct VerifiedOutput {
-    pub tcb_status: TcbStatus,
-    pub mr_enclave: [u8; 32],
-    pub mr_signer: [u8; 32],
-    pub report_data: [u8; 64],
-    pub fmspc: [u8; 6],
-}
-
-impl VerifiedOutput {
-    pub fn to_bytes(self) -> [u8; 135] {
-        let mut raw_bytes = [0; 135];
-        raw_bytes[0] = match self.tcb_status {
-            TcbStatus::OK => 0,
-            TcbStatus::TcbSwHardeningNeeded => 1,
-            TcbStatus::TcbConfigurationAndSwHardeningNeeded => 2,
-            TcbStatus::TcbConfigurationNeeded => 3,
-            TcbStatus::TcbOutOfDate => 4,
-            TcbStatus::TcbOutOfDateConfigurationNeeded => 5,
-            TcbStatus::TcbRevoked => 6,
-            TcbStatus::TcbUnrecognized => 7,
-        };
-        raw_bytes[1..33].copy_from_slice(&self.mr_enclave);
-        raw_bytes[33..65].copy_from_slice(&self.mr_signer);
-        raw_bytes[65..129].copy_from_slice(&self.report_data);
-        raw_bytes[129..135].copy_from_slice(&self.fmspc);
-
-        raw_bytes
-    }
-
-    pub fn from_bytes(slice: &[u8]) -> VerifiedOutput {
-        let tcb_status = match slice[0] {
-            0 => TcbStatus::OK,
-            1 => TcbStatus::TcbSwHardeningNeeded,
-            2 => TcbStatus::TcbConfigurationAndSwHardeningNeeded,
-            3 => TcbStatus::TcbConfigurationNeeded,
-            4 => TcbStatus::TcbOutOfDate,
-            5 => TcbStatus::TcbOutOfDateConfigurationNeeded,
-            6 => TcbStatus::TcbRevoked,
-            7 => TcbStatus::TcbUnrecognized,
-            _ => panic!("Invalid TCB Status"),
-        };
-        let mut mr_enclave = [0; 32];
-        mr_enclave.copy_from_slice(&slice[1..33]);
-        let mut mr_signer = [0; 32];
-        mr_signer.copy_from_slice(&slice[33..65]);
-        let mut report_data= [0; 64];
-        report_data.copy_from_slice(&slice[65..129]);
-        let mut fmspc = [0; 6];
-        fmspc.copy_from_slice(&slice[129..135]);
-
-        VerifiedOutput {
-            tcb_status,
-            mr_enclave,
-            mr_signer,
-            report_data,
-            fmspc,
-        }
-    }
-    
-}
 
 pub fn sha256sum(data: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
@@ -209,7 +125,7 @@ fn validate_tcbinforoot(tcb_info_root: &TcbInfoV2, root_verifying_key: &Verifyin
     root_verifying_key.verify(&tcb_info_root_signature_data, &tcb_info_root_signature).is_ok()
 }
 
-fn validate_enclaveidentityroot(enclave_identity_root: &EnclaveIdentityRoot, root_verifying_key: &VerifyingKey, current_time: u64) -> bool {
+fn validate_enclaveidentityroot(enclave_identity_root: &QveIdentityV2, root_verifying_key: &VerifyingKey, current_time: u64) -> bool {
     // get tcb_info_root time
     let issue_date = chrono::DateTime::parse_from_rfc3339(&enclave_identity_root.enclave_identity.issue_date).unwrap();
     let next_update_date = chrono::DateTime::parse_from_rfc3339(&enclave_identity_root.enclave_identity.next_update).unwrap();
@@ -235,7 +151,7 @@ fn validate_enclaveidentityroot(enclave_identity_root: &EnclaveIdentityRoot, roo
     root_verifying_key.verify(&enclave_identity_root_signature_data, &enclave_identity_root_signature).is_ok()
 }
 
-fn validate_qe_enclave(enclave_report: &SgxEnclaveReport, enclave_identity_root: &EnclaveIdentityRoot) -> bool {
+fn validate_qe_enclave(enclave_report: &SgxEnclaveReport, enclave_identity_root: &QveIdentityV2) -> bool {
     let mrsigner_ok = enclave_report.mrsigner == hex::decode(&enclave_identity_root.enclave_identity.mrsigner).unwrap().as_slice();
     let isvprodid_ok = enclave_report.isv_prod_id == enclave_identity_root.enclave_identity.isvprodid;
 
@@ -256,7 +172,7 @@ fn validate_qe_enclave(enclave_report: &SgxEnclaveReport, enclave_identity_root:
     mrsigner_ok && isvprodid_ok && enclave_attributes_ok && enclave_miscselect_ok && tcb_status == TcbStatus::OK
 }
 
-fn get_enclaveidentity_tcb_status(enclave_report: &SgxEnclaveReport, enclave_identity_root: &EnclaveIdentityRoot) -> TcbStatus {
+fn get_enclaveidentity_tcb_status(enclave_report: &SgxEnclaveReport, enclave_identity_root: &QveIdentityV2) -> TcbStatus {
     for tcb_level in enclave_identity_root.enclave_identity.tcb_levels.iter() {
         if tcb_level.tcb.isvsvn <= enclave_report.isv_svn {
             let tcb_status = match &tcb_level.tcb_status[..] {
@@ -291,7 +207,7 @@ fn verify_qe_report_data(qe_info: &SgxQuoteSignatureData) -> bool {
 // implement qe_report_data check (report_data is the hash of the isv_pubkey || qe_authdata)
 // implement VerifiedOutput serialization / deserialization
 // 
-pub fn verify_quote<'a>(quote: &SgxQuote, tcb_info_root: &TcbInfoV2, enclave_identity_root: &EnclaveIdentityRoot, signing_cert: &X509Certificate<'a>, root_cert: &X509Certificate<'a>, current_time: u64) -> VerifiedOutput {
+pub fn verify_quote<'a>(quote: &SgxQuote, tcb_info_root: &TcbInfoV2, enclave_identity_root: &QveIdentityV2, signing_cert: &X509Certificate<'a>, root_cert: &X509Certificate<'a>, current_time: u64) -> VerifiedOutput {
     let root_cert_public_key = root_cert.public_key().subject_public_key.as_ref();
     // let root_verifying_key = VerifyingKey::from_sec1_bytes(root_cert_public_key).unwrap();
 
@@ -719,7 +635,7 @@ mod tests {
         
         // println!("signing_cert tbs raw: {:?}", signing_cert.tbs_certificate.as_ref());
 
-        let enclave_identity_root: EnclaveIdentityRoot = serde_json::from_str(include_str!("../../data/qeidentity.json")).unwrap();
+        let enclave_identity_root: QveIdentityV2 = serde_json::from_str(include_str!("../../data/qeidentity.json")).unwrap();
 
         let current_time = chrono::Utc::now().timestamp() as u64;
 
