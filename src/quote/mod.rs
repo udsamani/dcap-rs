@@ -755,7 +755,7 @@ mod tests {
         let signing_cert_pem = parse_pem(signing_cert_pem).unwrap();
         let signing_cert = signing_cert_pem[0].parse_x509().unwrap();
         
-        println!("signing_cert tbs raw: {:?}", signing_cert.tbs_certificate.as_ref());
+        // println!("signing_cert tbs raw: {:?}", signing_cert.tbs_certificate.as_ref());
 
         let enclave_identity_root: EnclaveIdentityRoot = serde_json::from_str(include_str!("../../data/qeidentity.json")).unwrap();
 

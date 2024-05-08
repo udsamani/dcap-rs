@@ -244,7 +244,6 @@ pub struct TcbInfoV2TcbLevelItem {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TcbInfoV2TcbLevel {
-    pub pcesvn: u64,
     pub sgxtcbcomp01svn: u64,
     pub sgxtcbcomp02svn: u64,
     pub sgxtcbcomp03svn: u64,
@@ -261,6 +260,7 @@ pub struct TcbInfoV2TcbLevel {
     pub sgxtcbcomp14svn: u64,
     pub sgxtcbcomp15svn: u64,
     pub sgxtcbcomp16svn: u64,
+    pub pcesvn: u64,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
