@@ -236,14 +236,14 @@ pub struct TcbInfoV2Inner {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TcbInfoV2TcbLevelItem {
-    pub tcb: TcbLevel,
+    pub tcb: TcbInfoV2TcbLevel,
     pub tcb_date: String,
     pub tcb_status: String,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TcbLevel {
+pub struct TcbInfoV2TcbLevel {
     pub pcesvn: u64,
     pub sgxtcbcomp01svn: u64,
     pub sgxtcbcomp02svn: u64,
@@ -261,6 +261,29 @@ pub struct TcbLevel {
     pub sgxtcbcomp14svn: u64,
     pub sgxtcbcomp15svn: u64,
     pub sgxtcbcomp16svn: u64,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SgxExtensionTcbLevel {
+    pub sgxtcbcomp01svn: u64,
+    pub sgxtcbcomp02svn: u64,
+    pub sgxtcbcomp03svn: u64,
+    pub sgxtcbcomp04svn: u64,
+    pub sgxtcbcomp05svn: u64,
+    pub sgxtcbcomp06svn: u64,
+    pub sgxtcbcomp07svn: u64,
+    pub sgxtcbcomp08svn: u64,
+    pub sgxtcbcomp09svn: u64,
+    pub sgxtcbcomp10svn: u64,
+    pub sgxtcbcomp11svn: u64,
+    pub sgxtcbcomp12svn: u64,
+    pub sgxtcbcomp13svn: u64,
+    pub sgxtcbcomp14svn: u64,
+    pub sgxtcbcomp15svn: u64,
+    pub sgxtcbcomp16svn: u64,
+    pub pcesvn: u64,
+    pub cpusvn: [u8; 16]
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
