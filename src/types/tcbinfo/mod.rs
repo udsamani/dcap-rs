@@ -1,5 +1,40 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SgxExtensionTcbLevel {
+    pub sgxtcbcomp01svn: u64,
+    pub sgxtcbcomp02svn: u64,
+    pub sgxtcbcomp03svn: u64,
+    pub sgxtcbcomp04svn: u64,
+    pub sgxtcbcomp05svn: u64,
+    pub sgxtcbcomp06svn: u64,
+    pub sgxtcbcomp07svn: u64,
+    pub sgxtcbcomp08svn: u64,
+    pub sgxtcbcomp09svn: u64,
+    pub sgxtcbcomp10svn: u64,
+    pub sgxtcbcomp11svn: u64,
+    pub sgxtcbcomp12svn: u64,
+    pub sgxtcbcomp13svn: u64,
+    pub sgxtcbcomp14svn: u64,
+    pub sgxtcbcomp15svn: u64,
+    pub sgxtcbcomp16svn: u64,
+    pub pcesvn: u64,
+    pub cpusvn: [u8; 16]
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum TcbStatus {
+    OK,
+    TcbSwHardeningNeeded,
+    TcbConfigurationAndSwHardeningNeeded,
+    TcbConfigurationNeeded,
+    TcbOutOfDate,
+    TcbOutOfDateConfigurationNeeded,
+    TcbRevoked,
+    TcbUnrecognized
+}
+
 // TcbInfoV2:
 //     type: object
 //     description: >-
@@ -275,39 +310,4 @@ pub struct TcbInfoV2TcbLevel {
     pub sgxtcbcomp15svn: u64,
     pub sgxtcbcomp16svn: u64,
     pub pcesvn: u64,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SgxExtensionTcbLevel {
-    pub sgxtcbcomp01svn: u64,
-    pub sgxtcbcomp02svn: u64,
-    pub sgxtcbcomp03svn: u64,
-    pub sgxtcbcomp04svn: u64,
-    pub sgxtcbcomp05svn: u64,
-    pub sgxtcbcomp06svn: u64,
-    pub sgxtcbcomp07svn: u64,
-    pub sgxtcbcomp08svn: u64,
-    pub sgxtcbcomp09svn: u64,
-    pub sgxtcbcomp10svn: u64,
-    pub sgxtcbcomp11svn: u64,
-    pub sgxtcbcomp12svn: u64,
-    pub sgxtcbcomp13svn: u64,
-    pub sgxtcbcomp14svn: u64,
-    pub sgxtcbcomp15svn: u64,
-    pub sgxtcbcomp16svn: u64,
-    pub pcesvn: u64,
-    pub cpusvn: [u8; 16]
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum TcbStatus {
-    OK,
-    TcbSwHardeningNeeded,
-    TcbConfigurationAndSwHardeningNeeded,
-    TcbConfigurationNeeded,
-    TcbOutOfDate,
-    TcbOutOfDateConfigurationNeeded,
-    TcbRevoked,
-    TcbUnrecognized
 }
