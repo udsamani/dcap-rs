@@ -4,7 +4,7 @@ pub mod types;
 #[cfg(test)]
 mod tests {
     use crate::quote::{verify_quote, TcbInfoRoot, EnclaveIdentityRoot, parse_pem};
-    use crate::types::{SgxQuote, SgxEnclaveReport};
+    use crate::types::quote::{SgxQuote, SgxEnclaveReport};
     use x509_parser::prelude::*;
 
 

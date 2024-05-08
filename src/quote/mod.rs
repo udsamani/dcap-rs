@@ -9,7 +9,7 @@ use x509_parser::{der_parser::asn1_rs::{Boolean, Enumerated}, prelude::*};
 use oid_registry::asn1_rs;
 use asn1_rs::{oid, Sequence, FromDer, Oid, Integer, OctetString};
 
-use crate::types::{SgxEnclaveReport, SgxQuote, SgxQuoteSignatureData};
+use crate::types::quote::{SgxEnclaveReport, SgxQuote, SgxQuoteSignatureData};
 
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
