@@ -1,34 +1,46 @@
 use crate::types::quote::{SgxQuote, SgxEnclaveReport, SgxQuoteSignatureData};
-use crate::types::enclave_identity::QveIdentityV2;
-use crate::types::tcbinfo::{TcbInfoV2, TcbStatus};
+use crate::types::enclave_identity::EnclaveIdentityV2;
+use crate::types::tcbinfo::TcbInfoV2;
+use crate::types::{TcbStatus, VerifiedOutput};
 
 use crate::utils::hash::sha256sum;
+use crate::utils::cert::{get_fmspc_tcbstatus, parse_certchain, parse_pem, verify_certchain, verify_certificate, extract_sgx_extension};
+use crate::utils::enclave_identity::validate_enclave_identityv2;
+use crate::utils::tcbinfo::validate_tcbinfov2;
+use crate::utils::crypto::verify_p256_signature_bytes;
 
-use super::enclave_identity;
+use crate::X509Certificate;
 
-fn validate_qe_enclave(enclave_report: &SgxEnclaveReport, enclave_identity_root: &QveIdentityV2) -> bool {
-    let mrsigner_ok = enclave_report.mrsigner == hex::decode(&enclave_identity_root.enclave_identity.mrsigner).unwrap().as_slice();
-    let isvprodid_ok = enclave_report.isv_prod_id == enclave_identity_root.enclave_identity.isvprodid;
 
-    let attributes = hex::decode(&enclave_identity_root.enclave_identity.attributes).unwrap();
-    let attributes_mask = hex::decode(&enclave_identity_root.enclave_identity.attributes_mask).unwrap();
+fn validate_qe_enclave(enclave_report: &SgxEnclaveReport, qe_identityv2: &EnclaveIdentityV2) -> bool {
+    // make sure that the enclave_identityv2 is a qe_identityv2
+    // check that id is "QE" and version is 2
+    if qe_identityv2.enclave_identity.id != "QE" || qe_identityv2.enclave_identity.version != 2 {
+        return false;
+    }
+
+    let mrsigner_ok = enclave_report.mrsigner == hex::decode(&qe_identityv2.enclave_identity.mrsigner).unwrap().as_slice();
+    let isvprodid_ok = enclave_report.isv_prod_id == qe_identityv2.enclave_identity.isvprodid;
+
+    let attributes = hex::decode(&qe_identityv2.enclave_identity.attributes).unwrap();
+    let attributes_mask = hex::decode(&qe_identityv2.enclave_identity.attributes_mask).unwrap();
     let masked_attributes = attributes.iter().zip(attributes_mask.iter()).map(|(a, m)| a & m).collect::<Vec<u8>>();
     let masked_enclave_attributes = enclave_report.attributes.iter().zip(attributes_mask.iter()).map(|(a, m)| a & m).collect::<Vec<u8>>();
     let enclave_attributes_ok = masked_enclave_attributes == masked_attributes;
 
-    let miscselect = hex::decode(&enclave_identity_root.enclave_identity.miscselect).unwrap();
-    let miscselect_mask = hex::decode(&enclave_identity_root.enclave_identity.miscselect_mask).unwrap();
+    let miscselect = hex::decode(&qe_identityv2.enclave_identity.miscselect).unwrap();
+    let miscselect_mask = hex::decode(&qe_identityv2.enclave_identity.miscselect_mask).unwrap();
     let masked_miscselect = miscselect.iter().zip(miscselect_mask.iter()).map(|(a, m)| a & m).collect::<Vec<u8>>();
     let masked_enclave_miscselect = enclave_report.misc_select.iter().zip(miscselect_mask.iter()).map(|(a, m)| a & m).collect::<Vec<u8>>();
     let enclave_miscselect_ok = masked_enclave_miscselect == masked_miscselect;
 
-    let tcb_status = get_qe_tcbstatus(enclave_report, enclave_identity_root);
+    let tcb_status = get_qe_tcbstatus(enclave_report, qe_identityv2);
 
     mrsigner_ok && isvprodid_ok && enclave_attributes_ok && enclave_miscselect_ok && tcb_status == TcbStatus::OK
 }
 
-fn get_qe_tcbstatus(enclave_report: &SgxEnclaveReport, qve_identityv2: &QveIdentityV2) -> TcbStatus {
-    for tcb_level in qve_identityv2.enclave_identity.tcb_levels.iter() {
+fn get_qe_tcbstatus(enclave_report: &SgxEnclaveReport, qe_identityv2: &EnclaveIdentityV2) -> TcbStatus {
+    for tcb_level in qe_identityv2.enclave_identity.tcb_levels.iter() {
         if tcb_level.tcb.isvsvn <= enclave_report.isv_svn {
             let tcb_status = match &tcb_level.tcb_status[..] {
                 "UpToDate" => TcbStatus::OK,
@@ -47,8 +59,6 @@ fn get_qe_tcbstatus(enclave_report: &SgxEnclaveReport, qve_identityv2: &QveIdent
     TcbStatus::TcbUnrecognized
 }
 
-fn get_pck_tcbstatus(sgx_extension: )
-
 fn verify_qe_report_data(qe_info: &SgxQuoteSignatureData) -> bool {
     let mut verification_data = Vec::new();
     verification_data.extend_from_slice(&qe_info.ecdsa_attestation_key);
@@ -57,19 +67,13 @@ fn verify_qe_report_data(qe_info: &SgxQuoteSignatureData) -> bool {
     sha256sum(&verification_data) == qe_info.qe_report.report_data[..32]
 }
 
-pub fn verify_quote<'a>(quote: &SgxQuote, tcb_info_root: &TcbInfoV2, enclave_identity_root: &QveIdentityV2, signing_cert: &X509Certificate<'a>, root_cert: &X509Certificate<'a>, current_time: u64) -> VerifiedOutput {
-    let root_cert_public_key = root_cert.public_key().subject_public_key.as_ref();
-    // let root_verifying_key = VerifyingKey::from_sec1_bytes(root_cert_public_key).unwrap();
-
+pub fn verify_quote<'a>(quote: &SgxQuote, tcbinfov2: &TcbInfoV2, qe_identityv2: &EnclaveIdentityV2, signing_cert: &X509Certificate<'a>, root_cert: &X509Certificate<'a>, current_time: u64) -> VerifiedOutput {
     // verify that signing_verifying_key is signed by the root cert
-    assert!(verify_certificate(signing_cert, root_cert_public_key));
-    let signing_cert_public_key = signing_cert.public_key().subject_public_key.as_ref();
-    let signing_verifying_key = VerifyingKey::from_sec1_bytes(signing_cert_public_key).unwrap();
-
+    assert!(verify_certificate(signing_cert, root_cert));
 
     // check that tcb_info_root and enclave_identity_root are valid
-    assert!(validate_tcbinforoot(&tcb_info_root, &signing_verifying_key, current_time));
-    assert!(validate_enclaveidentityroot(&enclave_identity_root, &signing_verifying_key, current_time));
+    assert!(validate_tcbinfov2(&tcbinfov2, &root_cert.public_key().subject_public_key.as_ref(), current_time));
+    assert!(validate_enclave_identityv2(&qe_identityv2, &signing_cert.public_key().subject_public_key.as_ref(), current_time));
 
     // we'll extract the ISV (local enclave AKA the enclave that is attesting) report from the quote 
     let isv_enclave_report = quote.isv_enclave_report;
@@ -84,11 +88,7 @@ pub fn verify_quote<'a>(quote: &SgxQuote, tcb_info_root: &TcbInfoV2, enclave_ide
     data[48..432].copy_from_slice(&isv_enclave_report.to_bytes());
     let mut pubkey = [4; 65];
     pubkey[1..65].copy_from_slice(&ecdsa_quote_signature_data.ecdsa_attestation_key);
-    let isv_signature = Signature::from_bytes(&ecdsa_quote_signature_data.isv_enclave_report_signature.into()).unwrap();
-    let isv_verifying_key = VerifyingKey::from_sec1_bytes(&pubkey).unwrap();
-    // println!("signature: {:?}", hex::encode(isv_signature.to_bytes()));
-    // println!("verifying_key: {:?}", isv_verifying_key);
-    assert!(isv_verifying_key.verify(&data, &isv_signature).is_ok());
+    assert!(verify_p256_signature_bytes(&data, &ecdsa_quote_signature_data.isv_enclave_report_signature, &pubkey));
 
     // we'll get the certchain embedded in the ecda quote signature data
     // this can be one of 5 types
@@ -109,25 +109,18 @@ pub fn verify_quote<'a>(quote: &SgxQuote, tcb_info_root: &TcbInfoV2, enclave_ide
 
     // calculate the qe_report_hash
     let qe_report_bytes = ecdsa_quote_signature_data.qe_report.to_bytes();
-    // println!("qe_report_bytes:: {:?}", hex::encode(qe_report_bytes));
 
     // verify the signature of the QE report
     let qe_report_signature = ecdsa_quote_signature_data.qe_report_signature;
     let qe_report_public_key = leaf_cert.public_key().subject_public_key.as_ref();
-    // println!("qe_pubkey: {:?}", hex::encode(qe_report_public_key));
-    let qe_report_signature = Signature::from_bytes(&qe_report_signature.into()).unwrap();
-    let qe_report_verifying_key = VerifyingKey::from_sec1_bytes(qe_report_public_key).unwrap();
-    // println!("qe_report_signautre_bytes:: {:?}", hex::encode(qe_report_signature.to_bytes()));
-    // println!("qe_report_signature:::: {:?}", qe_report_signature);
-    // println!("qe_report_verifying_key:::: {:?}", qe_report_verifying_key);
-    assert!(qe_report_verifying_key.verify(&qe_report_bytes, &qe_report_signature).is_ok());
+    assert!(verify_p256_signature_bytes(&qe_report_bytes, &qe_report_signature, qe_report_public_key));
 
     // at this point in time, we have verified everything is kosher
     // isv_enclae is signed by the qe enclave
     // qe enclave is signed by intel
 
     // ensure that qe enclave matches with qeidentity
-    assert!(validate_qe_enclave(&ecdsa_quote_signature_data.qe_report, &enclave_identity_root));
+    assert!(validate_qe_enclave(&ecdsa_quote_signature_data.qe_report, qe_identityv2));
     
     // ensure that qe_report_data is correct
     assert!(verify_qe_report_data(&ecdsa_quote_signature_data));
@@ -139,8 +132,7 @@ pub fn verify_quote<'a>(quote: &SgxQuote, tcb_info_root: &TcbInfoV2, enclave_ide
 
     // extract the sgx extensions from the leaf certificate
     let sgx_extensions = extract_sgx_extension(&leaf_cert);
-    // println!("sgx_extensions: {:?}", sgx_extensions);
-    let tcb_status = get_tcbrootinfo_tcb_status(&sgx_extensions, &tcb_info_root);
+    let tcb_status = get_fmspc_tcbstatus(&sgx_extensions, tcbinfov2);
 
 
     VerifiedOutput {
