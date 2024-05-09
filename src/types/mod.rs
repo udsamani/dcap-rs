@@ -2,7 +2,7 @@ use serde::{Serialize, Deserialize};
 
 pub mod quote;
 pub mod tcbinfo;
-pub mod qve_identity;
+pub mod enclave_identity;
 pub mod cert;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
