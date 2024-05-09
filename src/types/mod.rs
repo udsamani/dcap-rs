@@ -1,9 +1,21 @@
+use serde::{Serialize, Deserialize};
+
 pub mod quote;
 pub mod tcbinfo;
 pub mod qve_identity;
 pub mod cert;
 
-use tcbinfo::TcbStatus;
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum TcbStatus {
+    OK,
+    TcbSwHardeningNeeded,
+    TcbConfigurationAndSwHardeningNeeded,
+    TcbConfigurationNeeded,
+    TcbOutOfDate,
+    TcbOutOfDateConfigurationNeeded,
+    TcbRevoked,
+    TcbUnrecognized
+}
 
 // serialization:
 // [tcb_status] [mr_enclave] [mr_signer] [report_data]

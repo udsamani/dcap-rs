@@ -3,6 +3,7 @@ use x509_parser::oid_registry::asn1_rs::{Boolean, Sequence, FromDer, Oid, Intege
 
 use p256::ecdsa::{VerifyingKey, signature::Verifier, Signature};
 
+use crate::types::cert::{SgxExtensions, SgxExtensionTcbLevel, PckPlatformConfiguration};
 use crate::utils::hash::{sha256sum, keccak256sum};
 
 pub fn hash_cert_keccak256(cert: &X509Certificate) -> [u8; 32] {

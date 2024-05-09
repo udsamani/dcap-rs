@@ -1,17 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum TcbStatus {
-    OK,
-    TcbSwHardeningNeeded,
-    TcbConfigurationAndSwHardeningNeeded,
-    TcbConfigurationNeeded,
-    TcbOutOfDate,
-    TcbOutOfDateConfigurationNeeded,
-    TcbRevoked,
-    TcbUnrecognized
-}
-
 // TcbInfoV2:
 //     type: object
 //     description: >-
