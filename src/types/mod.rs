@@ -1,28 +1,9 @@
-use serde::{Deserialize, Serialize};
-
 pub mod quote;
 pub mod tcbinfo;
 pub mod qve_identity;
+pub mod cert;
 
-use tcbinfo::{SgxExtensionTcbLevel, TcbStatus};
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SgxExtensions {
-    pub ppid: [u8; 16],
-    pub tcb: SgxExtensionTcbLevel,
-    pub pceid: [u8; 2],
-    pub fmspc: [u8; 6],
-    pub sgx_type: u32,
-    pub platform_instance_id: Option<[u8; 16]>,
-    pub configuration: Option<PckPlatformConfiguration>,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct PckPlatformConfiguration {
-    pub dynamic_platform: Option<bool>,
-    pub cached_keys: Option<bool>,
-    pub smt_enabled: Option<bool>,
-}
+use tcbinfo::TcbStatus;
 
 // serialization:
 // [tcb_status] [mr_enclave] [mr_signer] [report_data]
