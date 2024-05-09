@@ -1,9 +1,11 @@
 use x509_parser::prelude::*;
-use x509_parser::oid_registry::asn1_rs::{Boolean, Sequence, FromDer, Oid, Integer, OctetString};
+use x509_parser::oid_registry::asn1_rs::{Boolean, Sequence, FromDer, Oid, Integer, OctetString, oid, Enumerated};
 
 use p256::ecdsa::{VerifyingKey, signature::Verifier, Signature};
 
 use crate::types::cert::{SgxExtensions, SgxExtensionTcbLevel, PckPlatformConfiguration};
+use crate::types::tcbinfo::TcbInfoV2;
+use crate::types::TcbStatus;
 use crate::utils::hash::{sha256sum, keccak256sum};
 
 pub fn hash_cert_keccak256(cert: &X509Certificate) -> [u8; 32] {
@@ -297,7 +299,7 @@ pub fn extract_sgx_extension<'a>(cert: &'a X509Certificate<'a>) -> SgxExtensions
     }
 }
 
-pub fn get_fmspc_tcbinfo(sgx_extensions: &SgxExtensions, tcb_info_root: &TcbInfoV2) -> TcbStatus {
+pub fn get_fmspc_tcbstatus(sgx_extensions: &SgxExtensions, tcb_info_root: &TcbInfoV2) -> TcbStatus {
     // we'll make sure the tcbinforoot is valid
     // check that fmspc is valid
     // check that pceid is valid
