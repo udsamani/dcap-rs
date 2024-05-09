@@ -72,8 +72,8 @@ pub fn verify_quote<'a>(quote: &SgxQuote, tcbinfov2: &TcbInfoV2, qe_identityv2: 
     assert!(verify_certificate(signing_cert, root_cert));
 
     // check that tcb_info_root and enclave_identity_root are valid
-    assert!(validate_tcbinfov2(&tcbinfov2, &root_cert.public_key().subject_public_key.as_ref(), current_time));
-    assert!(validate_enclave_identityv2(&qe_identityv2, &signing_cert.public_key().subject_public_key.as_ref(), current_time));
+    assert!(validate_tcbinfov2(&tcbinfov2, &signing_cert, current_time));
+    assert!(validate_enclave_identityv2(&qe_identityv2, &signing_cert, current_time));
 
     // we'll extract the ISV (local enclave AKA the enclave that is attesting) report from the quote 
     let isv_enclave_report = quote.isv_enclave_report;

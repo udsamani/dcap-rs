@@ -1,7 +1,9 @@
 use crate::types::enclave_identity::EnclaveIdentityV2;
 use crate::utils::crypto::verify_p256_signature_bytes;
 
-pub fn validate_enclave_identityv2(enclave_identityv2: &EnclaveIdentityV2, sgx_signing_pubkey: &[u8], current_time: u64) -> bool {
+use crate::X509Certificate;
+
+pub fn validate_enclave_identityv2(enclave_identityv2: &EnclaveIdentityV2, sgx_signing_pubkey: &X509Certificate, current_time: u64) -> bool {
     // get tcb_info_root time
     let issue_date = chrono::DateTime::parse_from_rfc3339(&enclave_identityv2.enclave_identity.issue_date).unwrap();
     let next_update_date = chrono::DateTime::parse_from_rfc3339(&enclave_identityv2.enclave_identity.next_update).unwrap();
@@ -21,5 +23,5 @@ pub fn validate_enclave_identityv2(enclave_identityv2: &EnclaveIdentityV2, sgx_s
 
     // verify that the enclave_identity_root is signed by the root cert
     let enclave_identityv2_signature_data = serde_json::to_vec(&enclave_identityv2.enclave_identity).unwrap();
-    verify_p256_signature_bytes(&enclave_identityv2_signature_data, &enclave_identityv2_signature_bytes, &sgx_signing_pubkey)
+    verify_p256_signature_bytes(&enclave_identityv2_signature_data, &enclave_identityv2_signature_bytes, sgx_signing_pubkey.public_key().subject_public_key.as_ref())
 }

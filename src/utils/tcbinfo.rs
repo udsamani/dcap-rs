@@ -1,8 +1,9 @@
 
 use crate::types::tcbinfo::TcbInfoV2;
 use crate::utils::crypto::verify_p256_signature_bytes;
+use crate::X509Certificate;
 
-pub fn validate_tcbinfov2(tcbinfov2: &TcbInfoV2, root_ca_pubkey: &[u8], current_time: u64) -> bool {
+pub fn validate_tcbinfov2(tcbinfov2: &TcbInfoV2, sgx_signing_cert: &X509Certificate, current_time: u64) -> bool {
     // get tcb_info_root time
     let issue_date = chrono::DateTime::parse_from_rfc3339(&tcbinfov2.tcb_info.issue_date).unwrap();
     let next_update_date = chrono::DateTime::parse_from_rfc3339(&tcbinfov2.tcb_info.next_update).unwrap();
@@ -23,5 +24,5 @@ pub fn validate_tcbinfov2(tcbinfov2: &TcbInfoV2, root_ca_pubkey: &[u8], current_
 
     // verify that the tcb_info_root is signed by the root cert
     let tcbinfov2_signature_data = serde_json::to_vec(&tcbinfov2.tcb_info).unwrap();
-    verify_p256_signature_bytes(&tcbinfov2_signature_data, &tcbinfov2_signature_bytes, root_ca_pubkey)
+    verify_p256_signature_bytes(&tcbinfov2_signature_data, &tcbinfov2_signature_bytes, sgx_signing_cert.public_key().subject_public_key.as_ref())
 }

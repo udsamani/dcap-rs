@@ -12,3 +12,8 @@ pub fn verify_p256_signature_bytes(data: &[u8], signature: &[u8], public_key: &[
     verifying_key.verify(data, &signature).is_ok()
 }
 
+pub fn verify_p256_signature_der(data: &[u8], signature: &[u8], public_key: &[u8]) -> bool {
+    let signature = Signature::from_der(signature).unwrap();
+    let verifying_key = VerifyingKey::from_sec1_bytes(public_key).unwrap();
+    verifying_key.verify(data, &signature).is_ok()
+}

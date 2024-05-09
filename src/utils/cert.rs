@@ -5,7 +5,7 @@ use crate::types::cert::{SgxExtensions, SgxExtensionTcbLevel, PckPlatformConfigu
 use crate::types::tcbinfo::TcbInfoV2;
 use crate::types::TcbStatus;
 use crate::utils::hash::{sha256sum, keccak256sum};
-use crate::utils::crypto::verify_p256_signature_bytes;
+use crate::utils::crypto::verify_p256_signature_der;
 
 
 pub fn hash_cert_keccak256(cert: &X509Certificate) -> [u8; 32] {
@@ -36,7 +36,7 @@ pub fn verify_certificate(cert: &X509Certificate, signer_cert: &X509Certificate)
     let data = cert.tbs_certificate.as_ref();
     let signature = cert.signature_value.as_ref();
     let public_key = signer_cert.public_key().subject_public_key.as_ref();
-    verify_p256_signature_bytes(data, signature, public_key)
+    verify_p256_signature_der(data, signature, public_key)
 }
 
 pub fn validate_certificate(_cert: &X509Certificate) -> bool {
