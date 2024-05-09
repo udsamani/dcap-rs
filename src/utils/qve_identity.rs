@@ -1,4 +1,4 @@
-use crate::types::qve_identity::QveIdentityV2;
+use crate::types::enclave_identity::QveIdentityV2;
 use crate::utils::crypto::verify_p256_signature_bytes;
 
 fn validate_qveidentityv2(qve_identityv2: &QveIdentityV2, root_ca_pubkey: &[u8], current_time: u64) -> bool {

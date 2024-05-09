@@ -1,5 +1,5 @@
 use crate::types::quote::{SgxQuote, SgxEnclaveReport, SgxQuoteSignatureData};
-use crate::types::qve_identity::QveIdentityV2;
+use crate::types::enclave_identity::QveIdentityV2;
 use crate::types::tcbinfo::{TcbInfoV2, TcbStatus};
 
 use crate::utils::hash::sha256sum;

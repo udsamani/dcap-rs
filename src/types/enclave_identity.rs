@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-// QVEIdentityV2:
+// EnclaveIdentityV2:
 //     type: object
-//     description: QVE Identity data structure encoded as JSON string in case of success
+//     description: SGX Enclave Identity data structure encoded as JSON string in case of success
 //         (200 HTTP status code)
 //     properties:
 //         enclaveIdentity:
@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 //             properties:
 //                 id:
 //                     type: string
-//                     description: Identifier of the SGX Enclave issued by Intel. Supported values are QE and QVE
+//                     description: Identifier of the SGX Enclave issued by Intel. Supported values are QE, QVE and TD_QE
 //                 version:
 //                     type: integer
 //                     example: 2
@@ -19,15 +19,15 @@ use serde::{Deserialize, Serialize};
 //                     type: string
 //                     format: date-time
 //                     description: >-
-//                         Representation of date and time the QVE Identity information
+//                         Representation of date and time the Enclave Identity information
 //                         was created. The time shall be in UTC and the encoding shall
 //                         be compliant to ISO 8601 standard (YYYY-MM-DDThh:mm:ssZ)
 //                 nextUpdate:
 //                     type: string
 //                     format: date-time
 //                     description: >-
-//                         Representation of date and time by which next QVE
-//                         identity information will be issued. The time shall be in
+//                         Representation of date and time by which next Enclave Identity
+//                         information will be issued. The time shall be in
 //                         UTC and the encoding shall be compliant to ISO 8601 standard
 //                         (YYYY-MM-DDThh:mm:ssZ)
 //                 tcbEvaluationDataNumber:
@@ -133,14 +133,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct QveIdentityV2 {
-    pub enclave_identity: QveIdentityV2Inner,
+pub struct EnclaveIdentityV2 {
+    pub enclave_identity: EnclaveIdentityV2Inner,
     pub signature: String,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct QveIdentityV2Inner {
+pub struct EnclaveIdentityV2Inner {
     pub id: String,
     pub version: u64,
     pub issue_date: String,
@@ -152,19 +152,19 @@ pub struct QveIdentityV2Inner {
     pub attributes_mask: String,
     pub mrsigner: String,
     pub isvprodid: u16,
-    pub tcb_levels: Vec<QveIdentityV2TcbLevelItem>,
+    pub tcb_levels: Vec<EnclaveIdentityV2TcbLevelItem>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct QveIdentityV2TcbLevelItem {
-    pub tcb: QveIdentityV2TcbLevel,
+pub struct EnclaveIdentityV2TcbLevelItem {
+    pub tcb: EnclaveIdentityV2TcbLevel,
     pub tcb_date: String,
     pub tcb_status: String,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct QveIdentityV2TcbLevel {
+pub struct EnclaveIdentityV2TcbLevel {
     pub isvsvn: u16,
 }
