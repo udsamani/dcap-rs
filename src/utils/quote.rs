@@ -67,7 +67,7 @@ fn verify_qe_report_data(qe_info: &SgxQuoteSignatureData) -> bool {
     sha256sum(&verification_data) == qe_info.qe_report.report_data[..32]
 }
 
-pub fn verify_quote<'a>(quote: &SgxQuote, tcbinfov2: &TcbInfoV2, qe_identityv2: &EnclaveIdentityV2, signing_cert: &X509Certificate<'a>, root_cert: &X509Certificate<'a>, current_time: u64) -> VerifiedOutput {
+pub fn verify_quote_dcapv3<'a>(quote: &SgxQuote, tcbinfov2: &TcbInfoV2, qe_identityv2: &EnclaveIdentityV2, signing_cert: &X509Certificate<'a>, root_cert: &X509Certificate<'a>, current_time: u64) -> VerifiedOutput {
     // verify that signing_verifying_key is signed by the root cert
     assert!(verify_certificate(signing_cert, root_cert));
 
