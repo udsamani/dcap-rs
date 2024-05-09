@@ -1,12 +1,12 @@
 use x509_parser::prelude::*;
 use x509_parser::oid_registry::asn1_rs::{Boolean, Sequence, FromDer, Oid, Integer, OctetString, oid, Enumerated};
 
-use p256::ecdsa::{VerifyingKey, signature::Verifier, Signature};
-
 use crate::types::cert::{SgxExtensions, SgxExtensionTcbLevel, PckPlatformConfiguration};
 use crate::types::tcbinfo::TcbInfoV2;
 use crate::types::TcbStatus;
 use crate::utils::hash::{sha256sum, keccak256sum};
+use crate::utils::crypto::verify_p256_signature_bytes;
+
 
 pub fn hash_cert_keccak256(cert: &X509Certificate) -> [u8; 32] {
     keccak256sum(cert.tbs_certificate.as_ref())
@@ -31,11 +31,12 @@ pub fn parse_certchain<'a>(pem_certs: &'a[Pem]) -> Vec<X509Certificate<'a>> {
     }).collect()
 }
 
-fn verify_certificate(cert: &X509Certificate, public_key_raw: &[u8]) -> bool {
+fn verify_certificate(cert: &X509Certificate, signer_cert: &X509Certificate) -> bool {
     // verifies that the certificate is valid
-    let signature = Signature::from_der(&cert.signature_value.as_ref()).unwrap();
-    let verifying_key = VerifyingKey::from_sec1_bytes(public_key_raw).unwrap();
-    verifying_key.verify(&cert.tbs_certificate.as_ref(), &signature).is_ok()
+    let data = cert.tbs_certificate.as_ref();
+    let signature = cert.signature_value.as_ref();
+    let public_key = signer_cert.public_key().subject_public_key.as_ref();
+    verify_p256_signature_bytes(data, signature, public_key)
 }
 
 fn validate_certificate(_cert: &X509Certificate) -> bool {
@@ -52,7 +53,7 @@ pub fn verify_certchain<'a>(certs: &'a [X509Certificate<'a>], root_cert: &X509Ce
     let mut prev_cert = iter.next().unwrap();
     for cert in iter {
         // verify that the previous cert signed the current cert
-        if !verify_certificate(prev_cert, cert.public_key().subject_public_key.as_ref()) {
+        if !verify_certificate(prev_cert, cert) {
             return false;
         }
         // verify that the current cert is valid
@@ -62,7 +63,7 @@ pub fn verify_certchain<'a>(certs: &'a [X509Certificate<'a>], root_cert: &X509Ce
         prev_cert = cert;
     }
     // verify that the root cert signed the last cert
-    verify_certificate(prev_cert, root_cert.public_key().subject_public_key.as_ref())
+    verify_certificate(prev_cert, root_cert)
 }
 
 pub fn get_asn1_bool<'a>(bytes: &'a[u8], oid_str: &str) -> (&'a[u8], bool) {
