@@ -2,7 +2,7 @@
 use crate::types::tcbinfo::TcbInfoV2;
 use crate::utils::crypto::verify_p256_signature_bytes;
 
-fn validate_tcbinfov2(tcbinfov2: &TcbInfoV2, root_ca_pubkey: &[u8], current_time: u64) -> bool {
+pub fn validate_tcbinfov2(tcbinfov2: &TcbInfoV2, root_ca_pubkey: &[u8], current_time: u64) -> bool {
     // get tcb_info_root time
     let issue_date = chrono::DateTime::parse_from_rfc3339(&tcbinfov2.tcb_info.issue_date).unwrap();
     let next_update_date = chrono::DateTime::parse_from_rfc3339(&tcbinfov2.tcb_info.next_update).unwrap();

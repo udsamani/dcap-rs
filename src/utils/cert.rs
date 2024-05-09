@@ -31,7 +31,7 @@ pub fn parse_certchain<'a>(pem_certs: &'a[Pem]) -> Vec<X509Certificate<'a>> {
     }).collect()
 }
 
-fn verify_certificate(cert: &X509Certificate, signer_cert: &X509Certificate) -> bool {
+pub fn verify_certificate(cert: &X509Certificate, signer_cert: &X509Certificate) -> bool {
     // verifies that the certificate is valid
     let data = cert.tbs_certificate.as_ref();
     let signature = cert.signature_value.as_ref();
@@ -39,7 +39,7 @@ fn verify_certificate(cert: &X509Certificate, signer_cert: &X509Certificate) -> 
     verify_p256_signature_bytes(data, signature, public_key)
 }
 
-fn validate_certificate(_cert: &X509Certificate) -> bool {
+pub fn validate_certificate(_cert: &X509Certificate) -> bool {
     // TODO: check that the certificate is a valid cert.
     // i.e., make sure that the cert name is correct, issued by intel,
     // has not been revoked, etc.
