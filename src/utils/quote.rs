@@ -4,7 +4,7 @@ use crate::types::tcbinfo::{TcbInfoV2, TcbStatus};
 
 use crate::utils::hash::sha256sum;
 
-use super::qve_identity;
+use super::enclave_identity;
 
 fn validate_qe_enclave(enclave_report: &SgxEnclaveReport, enclave_identity_root: &QveIdentityV2) -> bool {
     let mrsigner_ok = enclave_report.mrsigner == hex::decode(&enclave_identity_root.enclave_identity.mrsigner).unwrap().as_slice();
