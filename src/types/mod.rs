@@ -17,6 +17,15 @@ pub enum TcbStatus {
     TcbUnrecognized
 }
 
+#[derive(Clone, Debug)]
+pub struct IntelCollateralV3 {
+    pub tcbinfov2_json: String,
+    pub qe_identityv2_json: String,
+    pub intel_root_ca_cert: Vec<u8>,
+    pub sgx_tcb_signing_cert: Vec<u8>,
+    pub sgx_pck_cert_chain: Option<Vec<u8>>,
+}
+
 // serialization:
 // [tcb_status] [mr_enclave] [mr_signer] [report_data]
 // [ 1 byte   ] [32 bytes  ] [32 bytes ] [64 bytes   ]
