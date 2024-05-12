@@ -36,6 +36,11 @@ pub fn parse_pem(raw_bytes: &[u8]) -> Result<Vec<Pem>, PEMError> {
     Pem::iter_from_buffer(raw_bytes).collect()
 }
 
+pub fn parse_crl_der<'a>(raw_bytes: &'a [u8]) -> CertificateRevocationList<'a> {
+    let (_, crl) = CertificateRevocationList::from_der(raw_bytes).unwrap();
+    crl
+}
+
 pub fn parse_x509_der<'a>(raw_bytes: &'a [u8]) -> X509Certificate<'a> {
     let (_, cert) = X509Certificate::from_der(raw_bytes).unwrap();
     cert
