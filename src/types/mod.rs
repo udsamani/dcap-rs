@@ -1,7 +1,9 @@
+use core::panic;
+
 use serde::{Serialize, Deserialize};
 use x509_parser::{certificate::X509Certificate, revocation_list::CertificateRevocationList};
 
-use crate::utils::cert::{parse_x509_der, parse_x509_der_multi, pem_to_der};
+use crate::utils::cert::{parse_crl_der, parse_x509_der, parse_x509_der_multi, pem_to_der};
 
 use self::{enclave_identity::EnclaveIdentityV2, tcbinfo::TcbInfoV2};
 
@@ -125,8 +127,64 @@ impl IntelCollateralV3 {
         }
     }
 
+    pub fn get_sgx_intel_root_ca_crl<'a>(&'a self) -> CertificateRevocationList<'a> {
+        match &self.sgx_intel_root_ca_crl_der {
+            Some(crl_der) => {
+                let crl = parse_crl_der(crl_der);
+                crl
+            },
+            None => panic!("SGX Intel Root CA CRL not set"),
+        }
+    }
+
+    pub fn set_sgx_intel_root_ca_crl_der(&mut self, sgx_intel_root_ca_crl_der: &[u8]) {
+        self.sgx_intel_root_ca_crl_der = Some(sgx_intel_root_ca_crl_der.to_vec());
+    }
+
+    pub fn set_sgx_intel_root_ca_crl_pem(&mut self, sgx_intel_root_ca_crl_pem: &[u8]) {
+        // convert pem to der
+        let sgx_intel_root_ca_crl_der = pem_to_der(sgx_intel_root_ca_crl_pem);
+        self.sgx_intel_root_ca_crl_der = Some(sgx_intel_root_ca_crl_der);
+    }
+
+    pub fn get_sgx_pck_processor_crl<'a>(&'a self) -> CertificateRevocationList<'a> {
+        match &self.sgx_pck_processor_crl_der {
+            Some(crl_der) => {
+                let crl = parse_crl_der(crl_der);
+                crl
+            },
+            None => panic!("SGX PCK Processor CRL not set"),
+        }
+    }
+
     pub fn set_sgx_processor_crl_der(&mut self, sgx_pck_processor_crl_der: &[u8]) {
         self.sgx_pck_processor_crl_der = Some(sgx_pck_processor_crl_der.to_vec());
+    }
+
+    pub fn set_sgx_processor_crl_der_pem(&mut self, sgx_pck_processor_crl_pem: &[u8]) {
+        // convert pem to der
+        let sgx_pck_processor_crl_der = pem_to_der(sgx_pck_processor_crl_pem);
+        self.sgx_pck_processor_crl_der = Some(sgx_pck_processor_crl_der);
+    }
+
+    pub fn get_sgx_platform_crl<'a>(&'a self) -> CertificateRevocationList<'a> {
+        match &self.sgx_pck_platform_crl_der {
+            Some(crl_der) => {
+                let crl = parse_crl_der(crl_der);
+                crl
+            },
+            None => panic!("SGX PCK Platform CRL not set"),
+        }
+    }
+
+    pub fn set_sgx_platform_crl_der(&mut self, sgx_pck_platform_crl_der: &[u8]) {
+        self.sgx_pck_platform_crl_der = Some(sgx_pck_platform_crl_der.to_vec());
+    }
+
+    pub fn set_sgx_platform_crl_der_pem(&mut self, sgx_pck_platform_crl_pem: &[u8]) {
+        // convert pem to der
+        let sgx_pck_platform_crl_der = pem_to_der(sgx_pck_platform_crl_pem);
+        self.sgx_pck_platform_crl_der = Some(sgx_pck_platform_crl_der);
     }
 }
 
