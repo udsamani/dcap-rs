@@ -25,6 +25,17 @@ pub fn parse_der(raw_bytes: &[u8]) -> X509Certificate {
     cert
 }
 
+pub fn parse_der_multi<'a>(raw_bytes: &'a [u8]) -> Vec<X509Certificate<'a>> {
+    let mut certs = Vec::new();
+    let mut i = raw_bytes;
+    while i.len() > 0 {
+        let (j, cert) = X509Certificate::from_der(i).unwrap();
+        certs.push(cert);
+        i = j;
+    }
+    certs
+}
+
 pub fn parse_certchain<'a>(pem_certs: &'a[Pem]) -> Vec<X509Certificate<'a>> {
     pem_certs.iter().map(|pem| {
         pem.parse_x509().unwrap()
