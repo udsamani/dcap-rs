@@ -6,16 +6,27 @@ use x509_parser::certificate::X509Certificate;
 #[cfg(test)]
 mod tests {
     #[test]
+    fn test_cert_pem_der() {
+        use super::utils::cert::{pem_to_der, parse_x509_der_multi};
+
+        let signing_cert_pem = include_bytes!("../data/pck_certchain.pem");
+        let der_bytes = pem_to_der(signing_cert_pem);
+        let der_certs= parse_x509_der_multi(&der_bytes);
+        // println!("{:?}", signing_certs);
+        println!("{:?}", der_certs.len());
+    }
+
+    #[test]
     fn test_verify() {
         use super::types::enclave_identity::EnclaveIdentityV2;
         use super::types::tcbinfo::TcbInfoV2;
         use super::types::quote::SgxQuote;
 
-        use super::utils::cert::{parse_der, parse_pem, hash_cert_keccak256};
+        use super::utils::cert::{parse_x509_der, parse_pem, hash_cert_keccak256};
         use super::utils::quote::verify_quote_dcapv3;
 
         let root_cert_der= include_bytes!("../data/Intel_SGX_Provisioning_Certification_RootCA.cer");
-        let root_cert = parse_der(root_cert_der);
+        let root_cert = parse_x509_der(root_cert_der);
 
         let signing_cert_pem = include_bytes!("../data/signing_cert.pem");
         let signing_cert_pem = parse_pem(signing_cert_pem).unwrap();

@@ -1,7 +1,7 @@
 use serde::{Serialize, Deserialize};
 use x509_parser::{certificate::X509Certificate, revocation_list::CertificateRevocationList};
 
-use crate::utils::cert::{parse_der, parse_der_multi, pem_to_der};
+use crate::utils::cert::{parse_x509_der, parse_x509_der_multi, pem_to_der};
 
 use self::{enclave_identity::EnclaveIdentityV2, tcbinfo::TcbInfoV2};
 
@@ -60,7 +60,7 @@ impl IntelCollateralV3 {
     pub fn get_intel_root_ca<'a>(&'a self) -> X509Certificate<'a> {
         match self.intel_root_ca_der {
             Some(ref der) => {
-                let cert = parse_der(der);
+                let cert = parse_x509_der(der);
                 cert
             },
             None => panic!("Intel Root CA not set"),
@@ -74,7 +74,7 @@ impl IntelCollateralV3 {
     pub fn get_sgx_tcb_signing<'a>(&'a self) -> X509Certificate<'a> {
         match self.sgx_tcb_signing_der {
             Some(ref der) => {
-                let cert = parse_der(der);
+                let cert = parse_x509_der(der);
                 cert
             },
             None => panic!("SGX TCB Signing Cert not set"),
@@ -94,7 +94,7 @@ impl IntelCollateralV3 {
     pub fn get_sgx_pck_certchain<'a>(&'a self) -> Option<Vec<X509Certificate<'a>>> {
         match &self.sgx_pck_certchain_der {
             Some(certchain_der) => {
-                let certchain = parse_der_multi(certchain_der);
+                let certchain = parse_x509_der_multi(certchain_der);
                 Some(certchain)
             },
             None => None,

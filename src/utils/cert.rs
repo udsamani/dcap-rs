@@ -36,12 +36,12 @@ pub fn parse_pem(raw_bytes: &[u8]) -> Result<Vec<Pem>, PEMError> {
     Pem::iter_from_buffer(raw_bytes).collect()
 }
 
-pub fn parse_der(raw_bytes: &[u8]) -> X509Certificate {
+pub fn parse_x509_der<'a>(raw_bytes: &'a [u8]) -> X509Certificate<'a> {
     let (_, cert) = X509Certificate::from_der(raw_bytes).unwrap();
     cert
 }
 
-pub fn parse_der_multi<'a>(raw_bytes: &'a [u8]) -> Vec<X509Certificate<'a>> {
+pub fn parse_x509_der_multi<'a>(raw_bytes: &'a [u8]) -> Vec<X509Certificate<'a>> {
     let mut certs = Vec::new();
     let mut i = raw_bytes;
     while i.len() > 0 {
