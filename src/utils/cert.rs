@@ -16,6 +16,22 @@ pub fn hash_cert_sha256(cert: &X509Certificate) -> [u8; 32] {
     sha256sum(cert.tbs_certificate.as_ref())
 }
 
+pub fn pem_to_der(pem_bytes: &[u8]) -> Vec<u8> {
+    // convert from raw pem bytes to pem objects
+    let pems = parse_pem(pem_bytes).unwrap();
+    // convert from pem objects to der bytes
+    // to make it more optimize, we'll read get all the lengths of the der bytes
+    // and then allocate the buffer once
+    let der_bytes_len: usize = pems.iter().map(|pem| {
+        pem.contents.len()
+    }).sum();
+    let mut der_bytes = Vec::with_capacity(der_bytes_len);
+    for pem in pems {
+        der_bytes.extend_from_slice(&pem.contents);
+    }
+    der_bytes
+}
+
 pub fn parse_pem(raw_bytes: &[u8]) -> Result<Vec<Pem>, PEMError> {
     Pem::iter_from_buffer(raw_bytes).collect()
 }
