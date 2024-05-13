@@ -58,43 +58,43 @@ impl IntelCollateralV3 {
         // [lengths of each of the member][data segment]
 
         let tcbinfov2_bytes = match self.tcbinfov2 {
-            Some(ref tcbinfov2) => serde_json::to_vec(tcbinfov2).unwrap(),
-            None => vec![],
+            Some(ref tcbinfov2) => tcbinfov2.as_slice(),
+            None => &[],
         };
 
         let qeidentityv2_bytes = match self.qeidentityv2 {
-            Some(ref qeidentityv2) => serde_json::to_vec(qeidentityv2).unwrap(),
-            None => vec![],
+            Some(ref qeidentityv2) => qeidentityv2.as_slice(),
+            None => &[],
         };
 
         let sgx_intel_root_ca_der_bytes = match &self.sgx_intel_root_ca_der {
-            Some(der) => der.clone(),
-            None => vec![],
+            Some(der) => der.as_slice(),
+            None => &[],
         };
 
         let sgx_tcb_signing_der_bytes = match &self.sgx_tcb_signing_der {
-            Some(der) => der.clone(),
-            None => vec![],
+            Some(der) => der.as_slice(),
+            None => &[],
         };
 
         let sgx_pck_certchain_der_bytes = match &self.sgx_pck_certchain_der {
-            Some(der) => der.clone(),
-            None => vec![],
+            Some(der) => der.as_slice(),
+            None => &[],
         };
 
         let sgx_intel_root_ca_crl_der_bytes = match &self.sgx_intel_root_ca_crl_der {
-            Some(der) => der.clone(),
-            None => vec![],
+            Some(der) => der.as_slice(),
+            None => &[],
         };
 
         let sgx_pck_processor_crl_der_bytes = match &self.sgx_pck_processor_crl_der {
-            Some(der) => der.clone(),
-            None => vec![],
+            Some(der) => der.as_slice(),
+            None => &[],
         };
 
         let sgx_pck_platform_crl_der_bytes = match &self.sgx_pck_platform_crl_der {
-            Some(der) => der.clone(),
-            None => vec![],
+            Some(der) => der.as_slice(),
+            None => &[],
         };
 
         // get the total length
