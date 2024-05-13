@@ -65,11 +65,11 @@ fn verify_qe_report_data(qe_info: &SgxQuoteSignatureData) -> bool {
     sha256sum(&verification_data) == qe_info.qe_report.report_data[..32]
 }
 
-pub fn verify_quote_dcapv3<'a>(quote: &SgxQuote, collaterals: &IntelCollateralV3, current_time: u64) -> VerifiedOutput {
+pub fn verify_quote_dcapv3(quote: &SgxQuote, collaterals: &IntelCollateralV3, current_time: u64) -> VerifiedOutput {
     let signing_cert = collaterals.get_sgx_tcb_signing();
     let root_cert = collaterals.get_intel_root_ca();
-    let tcbinfov2 = collaterals.tcbinfov2.as_ref().unwrap();
-    let qeidentityv2 = collaterals.qeidentityv2.as_ref().unwrap();
+    let tcbinfov2 = collaterals.get_tcbinfov2();
+    let qeidentityv2 = collaterals.get_qeidentityv2();
 
     // make sure that all the certificates we are using are not revoked
     let intel_crls = IntelSgxCrls::from_collaterals(collaterals);

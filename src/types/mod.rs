@@ -26,8 +26,8 @@ pub enum TcbStatus {
 
 #[derive(Clone, Debug)]
 pub struct IntelCollateralV3 {
-    pub tcbinfov2: Option<TcbInfoV2>,
-    pub qeidentityv2: Option<EnclaveIdentityV2>,
+    pub tcbinfov2: Option<Vec<u8>>,
+    pub qeidentityv2: Option<Vec<u8>>,
     pub intel_root_ca_der: Option<Vec<u8>>,
     pub sgx_tcb_signing_der: Option<Vec<u8>>,
     pub sgx_pck_certchain_der: Option<Vec<u8>>,
@@ -136,15 +136,15 @@ impl IntelCollateralV3 {
         let sgx_pck_platform_crl_der_len = u32::from_le_bytes(slice[28..32].try_into().unwrap()) as usize;
 
         let mut offset = 4 * 8 as usize;
-        let tcbinfov2: Option<TcbInfoV2> = match tcbinfov2_len {
+        let tcbinfov2: Option<Vec<u8>> = match tcbinfov2_len {
             0 => None,
-            len => serde_json::from_slice(&slice[offset..offset + len]).unwrap()
+            len => Some(slice[offset..offset + len].to_vec())
         };
         offset += tcbinfov2_len;
 
-        let qeidentityv2: Option<EnclaveIdentityV2> = match qeidentityv2_len {
+        let qeidentityv2: Option<Vec<u8>> = match qeidentityv2_len {
             0 => None,
-            len => serde_json::from_slice(&slice[offset..offset + len]).unwrap()
+            len => Some(slice[offset..offset + len].to_vec())
         };
         offset += qeidentityv2_len;
 
@@ -198,12 +198,32 @@ impl IntelCollateralV3 {
         }
     }
 
+    pub fn get_tcbinfov2(&self) -> TcbInfoV2 {
+        match &self.tcbinfov2 {
+            Some(tcbinfov2) => {
+                let tcbinfo = serde_json::from_slice(tcbinfov2).unwrap();
+                tcbinfo
+            },
+            None => panic!("TCB Info V2 not set"),
+        }
+    }
+
     pub fn set_tcbinfov2(&mut self, tcbinfov2_slice: &[u8]) {
-        self.tcbinfov2 = serde_json::from_slice(tcbinfov2_slice).unwrap();
+        self.tcbinfov2 = Some(tcbinfov2_slice.to_vec());
+    }
+
+    pub fn get_qeidentityv2(&self) -> EnclaveIdentityV2 {
+        match &self.qeidentityv2 {
+            Some(qeidentityv2) => {
+                let qeidentity = serde_json::from_slice(qeidentityv2).unwrap();
+                qeidentity
+            },
+            None => panic!("QE Identity V2 not set"),
+        }
     }
 
     pub fn set_qeidentityv2(&mut self, qeidentityv2_slice: &[u8]) {
-        self.qeidentityv2 = serde_json::from_slice(qeidentityv2_slice).unwrap();
+        self.qeidentityv2 = Some(qeidentityv2_slice.to_vec());
     }
 
     pub fn get_intel_root_ca<'a>(&'a self) -> X509Certificate<'a> {
