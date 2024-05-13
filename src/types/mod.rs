@@ -51,6 +51,153 @@ impl IntelCollateralV3 {
         }
     }
 
+    pub fn to_bytes(&self) -> Vec<u8> {
+        // serialization scheme is simple: the bytestream is made of 2 parts 
+        // the first contains a u32 length for each of the members
+        // the second contains the actual data
+        // [lengths of each of the member][data segment]
+
+        let tcbinfov2_bytes = match self.tcbinfov2 {
+            Some(ref tcbinfov2) => serde_json::to_vec(tcbinfov2).unwrap(),
+            None => vec![],
+        };
+
+        let qe_identityv2_bytes = match self.qe_identityv2 {
+            Some(ref qe_identityv2) => serde_json::to_vec(qe_identityv2).unwrap(),
+            None => vec![],
+        };
+
+        let intel_root_ca_der_bytes = match &self.intel_root_ca_der {
+            Some(der) => der.clone(),
+            None => vec![],
+        };
+
+        let sgx_tcb_signing_der_bytes = match &self.sgx_tcb_signing_der {
+            Some(der) => der.clone(),
+            None => vec![],
+        };
+
+        let sgx_pck_certchain_der_bytes = match &self.sgx_pck_certchain_der {
+            Some(der) => der.clone(),
+            None => vec![],
+        };
+
+        let sgx_intel_root_ca_crl_der_bytes = match &self.sgx_intel_root_ca_crl_der {
+            Some(der) => der.clone(),
+            None => vec![],
+        };
+
+        let sgx_pck_processor_crl_der_bytes = match &self.sgx_pck_processor_crl_der {
+            Some(der) => der.clone(),
+            None => vec![],
+        };
+
+        let sgx_pck_platform_crl_der_bytes = match &self.sgx_pck_platform_crl_der {
+            Some(der) => der.clone(),
+            None => vec![],
+        };
+
+        // get the total length
+        let total_length = 4 * 8 + tcbinfov2_bytes.len() + qe_identityv2_bytes.len() + intel_root_ca_der_bytes.len() + sgx_tcb_signing_der_bytes.len() + sgx_pck_certchain_der_bytes.len() + sgx_intel_root_ca_crl_der_bytes.len() + sgx_pck_processor_crl_der_bytes.len() + sgx_pck_platform_crl_der_bytes.len();
+
+        // create the vec and copy the data
+        let mut data = Vec::with_capacity(total_length);
+        data.extend_from_slice(&(tcbinfov2_bytes.len() as u32).to_le_bytes());
+        data.extend_from_slice(&(qe_identityv2_bytes.len() as u32).to_le_bytes());
+        data.extend_from_slice(&(intel_root_ca_der_bytes.len() as u32).to_le_bytes());
+        data.extend_from_slice(&(sgx_tcb_signing_der_bytes.len() as u32).to_le_bytes());
+        data.extend_from_slice(&(sgx_pck_certchain_der_bytes.len() as u32).to_le_bytes());
+        data.extend_from_slice(&(sgx_intel_root_ca_crl_der_bytes.len() as u32).to_le_bytes());
+        data.extend_from_slice(&(sgx_pck_processor_crl_der_bytes.len() as u32).to_le_bytes());
+        data.extend_from_slice(&(sgx_pck_platform_crl_der_bytes.len() as u32).to_le_bytes());
+
+        data.extend_from_slice(&tcbinfov2_bytes);
+        data.extend_from_slice(&qe_identityv2_bytes);
+        data.extend_from_slice(&intel_root_ca_der_bytes);
+        data.extend_from_slice(&sgx_tcb_signing_der_bytes);
+        data.extend_from_slice(&sgx_pck_certchain_der_bytes);
+        data.extend_from_slice(&sgx_intel_root_ca_crl_der_bytes);
+        data.extend_from_slice(&sgx_pck_processor_crl_der_bytes);
+        data.extend_from_slice(&sgx_pck_platform_crl_der_bytes);
+
+        data
+    }
+
+    pub fn from_bytes(slice: &[u8]) -> Self {
+        // reverse the serialization process
+        // each length is 4 bytes long, we have a total of 8 members
+        let tcbinfov2_len = u32::from_le_bytes(slice[0..4].try_into().unwrap()) as usize;
+        let qe_identityv2_len = u32::from_le_bytes(slice[4..8].try_into().unwrap()) as usize;
+        let intel_root_ca_der_len = u32::from_le_bytes(slice[8..12].try_into().unwrap()) as usize;
+        let sgx_tcb_signing_der_len = u32::from_le_bytes(slice[12..16].try_into().unwrap()) as usize;
+        let sgx_pck_certchain_der_len = u32::from_le_bytes(slice[16..20].try_into().unwrap()) as usize;
+        let sgx_intel_root_ca_crl_der_len = u32::from_le_bytes(slice[20..24].try_into().unwrap()) as usize;
+        let sgx_pck_processor_crl_der_len = u32::from_le_bytes(slice[24..28].try_into().unwrap()) as usize;
+        let sgx_pck_platform_crl_der_len = u32::from_le_bytes(slice[28..32].try_into().unwrap()) as usize;
+
+        let mut offset = 4 * 8 as usize;
+        let tcbinfov2: Option<TcbInfoV2> = match tcbinfov2_len {
+            0 => None,
+            len => serde_json::from_slice(&slice[offset..offset + len]).unwrap()
+        };
+        offset += tcbinfov2_len;
+
+        let qe_identityv2: Option<EnclaveIdentityV2> = match qe_identityv2_len {
+            0 => None,
+            len => serde_json::from_slice(&slice[offset..offset + len]).unwrap()
+        };
+        offset += qe_identityv2_len;
+
+        let intel_root_ca_der: Option<Vec<u8>> = match intel_root_ca_der_len {
+            0 => None,
+            len => Some(slice[offset..offset + len].to_vec())
+        };
+        offset += intel_root_ca_der_len;
+
+        let sgx_tcb_signing_der: Option<Vec<u8>> = match sgx_tcb_signing_der_len {
+            0 => None,
+            len => Some(slice[offset..offset + len].to_vec())
+        };
+        offset += sgx_tcb_signing_der_len;
+
+        let sgx_pck_certchain_der: Option<Vec<u8>> = match sgx_pck_certchain_der_len {
+            0 => None,
+            len => Some(slice[offset..offset + len].to_vec())
+        };
+        offset += sgx_pck_certchain_der_len;
+
+        let sgx_intel_root_ca_crl_der: Option<Vec<u8>> = match sgx_intel_root_ca_crl_der_len {
+            0 => None,
+            len => Some(slice[offset..offset + len].to_vec())
+        };
+        offset += sgx_intel_root_ca_crl_der_len;
+
+        let sgx_pck_processor_crl_der: Option<Vec<u8>> = match sgx_pck_processor_crl_der_len {
+            0 => None,
+            len => Some(slice[offset..offset + len].to_vec())
+        };
+        offset += sgx_pck_processor_crl_der_len;
+
+        let sgx_pck_platform_crl_der: Option<Vec<u8>> = match sgx_pck_platform_crl_der_len {
+            0 => None,
+            len => Some(slice[offset..offset + len].to_vec())
+        };
+        offset += sgx_pck_platform_crl_der_len;
+
+        assert!(offset == slice.len());
+
+        IntelCollateralV3 {
+            tcbinfov2,
+            qe_identityv2,
+            intel_root_ca_der,
+            sgx_tcb_signing_der,
+            sgx_pck_certchain_der,
+            sgx_intel_root_ca_crl_der,
+            sgx_pck_processor_crl_der,
+            sgx_pck_platform_crl_der,
+        }
+    }
+
     pub fn set_tcbinfov2(&mut self, tcbinfov2_slice: &[u8]) {
         self.tcbinfov2 = serde_json::from_slice(tcbinfov2_slice).unwrap();
     }
