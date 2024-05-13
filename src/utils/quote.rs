@@ -1,15 +1,13 @@
+use crate::types::cert::IntelSgxCrls;
 use crate::types::quote::{SgxQuote, SgxEnclaveReport, SgxQuoteSignatureData};
 use crate::types::enclave_identity::EnclaveIdentityV2;
-use crate::types::tcbinfo::TcbInfoV2;
-use crate::types::{TcbStatus, VerifiedOutput};
+use crate::types::{IntelCollateralV3, TcbStatus, VerifiedOutput};
 
 use crate::utils::hash::sha256sum;
-use crate::utils::cert::{get_fmspc_tcbstatus, parse_certchain, parse_pem, verify_certchain, verify_certificate, extract_sgx_extension};
+use crate::utils::cert::{extract_sgx_extension, get_fmspc_tcbstatus, parse_certchain, parse_pem, verify_certchain_signature, verify_certificate};
 use crate::utils::enclave_identity::validate_enclave_identityv2;
 use crate::utils::tcbinfo::validate_tcbinfov2;
 use crate::utils::crypto::verify_p256_signature_bytes;
-
-use crate::X509Certificate;
 
 
 fn validate_qe_enclave(enclave_report: &SgxEnclaveReport, qe_identityv2: &EnclaveIdentityV2) -> bool {
@@ -67,9 +65,20 @@ fn verify_qe_report_data(qe_info: &SgxQuoteSignatureData) -> bool {
     sha256sum(&verification_data) == qe_info.qe_report.report_data[..32]
 }
 
-pub fn verify_quote_dcapv3<'a>(quote: &SgxQuote, tcbinfov2: &TcbInfoV2, qe_identityv2: &EnclaveIdentityV2, signing_cert: &X509Certificate<'a>, root_cert: &X509Certificate<'a>, current_time: u64) -> VerifiedOutput {
+pub fn verify_quote_dcapv3<'a>(quote: &SgxQuote, collaterals: &IntelCollateralV3, current_time: u64) -> VerifiedOutput {
+    let signing_cert = collaterals.get_sgx_tcb_signing();
+    let root_cert = collaterals.get_intel_root_ca();
+    let tcbinfov2 = collaterals.tcbinfov2.as_ref().unwrap();
+    let qe_identityv2 = collaterals.qe_identityv2.as_ref().unwrap();
+
+    // make sure that all the certificates we are using are not revoked
+    let intel_crls = IntelSgxCrls::from_collaterals(collaterals);
+    intel_crls.is_cert_revoked(&signing_cert);
+    intel_crls.is_cert_revoked(&root_cert);
+
+    // we'll delay the checking of the certchain to later
     // verify that signing_verifying_key is signed by the root cert
-    assert!(verify_certificate(signing_cert, root_cert));
+    assert!(verify_certificate(&signing_cert, &root_cert));
 
     // check that tcb_info_root and enclave_identity_root are valid
     assert!(validate_tcbinfov2(&tcbinfov2, &signing_cert, current_time));
@@ -98,11 +107,14 @@ pub fn verify_quote_dcapv3<'a>(quote: &SgxQuote, tcbinfov2: &TcbInfoV2, qe_ident
     assert_eq!(ecdsa_quote_signature_data.qe_cert_data.cert_data_type, 5);
     let certchain_pems = parse_pem(&ecdsa_quote_signature_data.qe_cert_data.cert_data).unwrap();
     let certchain = parse_certchain(&certchain_pems);
-    // verify that the cert chain is valid
-    // we'll assume that the root cert is the last cert in the chain
-    // TODO: Replace root cert here to be the actual root cert
-    // let root_cert = certchain.last().unwrap();
-    assert!(verify_certchain(&certchain, root_cert));
+
+    // checks that the certificates used in the certchain are not revoked
+    for cert in certchain.iter() {
+        assert!(!intel_crls.is_cert_revoked(cert));
+    }
+
+    // verify that the cert chain signatures are valid
+    assert!(verify_certchain_signature(&certchain, &root_cert));
 
     // get the leaf certificate
     let leaf_cert = parse_certchain(&certchain_pems)[0].clone();
@@ -120,7 +132,7 @@ pub fn verify_quote_dcapv3<'a>(quote: &SgxQuote, tcbinfov2: &TcbInfoV2, qe_ident
     // qe enclave is signed by intel
 
     // ensure that qe enclave matches with qeidentity
-    assert!(validate_qe_enclave(&ecdsa_quote_signature_data.qe_report, qe_identityv2));
+    assert!(validate_qe_enclave(&ecdsa_quote_signature_data.qe_report, &qe_identityv2));
     
     // ensure that qe_report_data is correct
     assert!(verify_qe_report_data(&ecdsa_quote_signature_data));
@@ -132,8 +144,7 @@ pub fn verify_quote_dcapv3<'a>(quote: &SgxQuote, tcbinfov2: &TcbInfoV2, qe_ident
 
     // extract the sgx extensions from the leaf certificate
     let sgx_extensions = extract_sgx_extension(&leaf_cert);
-    let tcb_status = get_fmspc_tcbstatus(&sgx_extensions, tcbinfov2);
-
+    let tcb_status = get_fmspc_tcbstatus(&sgx_extensions, &tcbinfov2);
 
     VerifiedOutput {
         tcb_status,

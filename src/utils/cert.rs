@@ -1,5 +1,7 @@
+use x509_parser::oid_registry::OID_X509_EXT_CRL_DISTRIBUTION_POINTS;
 use x509_parser::prelude::*;
 use x509_parser::oid_registry::asn1_rs::{Boolean, Sequence, FromDer, Oid, Integer, OctetString, oid, Enumerated};
+
 
 use crate::types::cert::{SgxExtensions, SgxExtensionTcbLevel, PckPlatformConfiguration};
 use crate::types::tcbinfo::TcbInfoV2;
@@ -63,6 +65,12 @@ pub fn parse_certchain<'a>(pem_certs: &'a[Pem]) -> Vec<X509Certificate<'a>> {
     }).collect()
 }
 
+pub fn check_certificate<'a, 'b, 'c>(cert: &X509Certificate<'a>, issuer: &X509Certificate<'b>, crl: &CertificateRevocationList<'c>, subject_name: &str, current_time: u64) -> bool {
+    let is_cert_valid = validate_certificate(cert, crl, subject_name, issuer.subject().to_string().as_str(), current_time);
+    let is_cert_verified = verify_certificate(cert, issuer);
+    is_cert_valid && is_cert_verified
+}
+
 pub fn verify_certificate(cert: &X509Certificate, signer_cert: &X509Certificate) -> bool {
     // verifies that the certificate is valid
     let data = cert.tbs_certificate.as_ref();
@@ -71,15 +79,41 @@ pub fn verify_certificate(cert: &X509Certificate, signer_cert: &X509Certificate)
     verify_p256_signature_der(data, signature, public_key)
 }
 
-pub fn validate_certificate(_cert: &X509Certificate) -> bool {
-    // TODO: check that the certificate is a valid cert.
+pub fn validate_certificate(_cert: &X509Certificate, crl: &CertificateRevocationList, subject_name: &str, issuer_name: &str, current_time: u64) -> bool {
+    // check that the certificate is a valid cert.
     // i.e., make sure that the cert name is correct, issued by intel,
     // has not been revoked, etc.
     // for now, we'll just return true
-    true
+
+    // check if certificate is expired
+    let issue_date = _cert.validity().not_before.timestamp() as u64;
+    let expiry_date = _cert.validity().not_after.timestamp() as u64;
+
+    if (current_time < issue_date) || (current_time > expiry_date) {
+        return false;
+    }
+
+    // check that the certificate is issued to the correct subject
+    if _cert.subject().to_string().as_str() != subject_name {
+        return false;
+    }
+
+    // check if certificate is issued by the correct issuer
+    if _cert.issuer().to_string().as_str() != issuer_name {
+        return false;
+    }
+
+    // check if certificate has been revoked
+    let is_revoked = crl.iter_revoked_certificates().any(|entry| {
+        (entry.revocation_date.timestamp() as u64) < current_time &&
+        entry.user_certificate == _cert.tbs_certificate.serial
+    });
+
+    !is_revoked
 }
 
-pub fn verify_certchain<'a>(certs: &'a [X509Certificate<'a>], root_cert: &X509Certificate<'a>) -> bool {
+// we'll just verify that the certchain signature matches, any other checks will be done by the caller
+pub fn verify_certchain_signature<'a, 'b>(certs: &[X509Certificate<'a>], root_cert: &X509Certificate<'b>) -> bool {
     // verify that the cert chain is valid
     let mut iter = certs.iter();
     let mut prev_cert = iter.next().unwrap();
@@ -88,14 +122,38 @@ pub fn verify_certchain<'a>(certs: &'a [X509Certificate<'a>], root_cert: &X509Ce
         if !verify_certificate(prev_cert, cert) {
             return false;
         }
-        // verify that the current cert is valid
-        if !validate_certificate(prev_cert) {
-            return false;
-        }
         prev_cert = cert;
     }
     // verify that the root cert signed the last cert
     verify_certificate(prev_cert, root_cert)
+}
+
+pub fn is_cert_revoked<'a, 'b>(cert: &X509Certificate<'a>, crl: &CertificateRevocationList<'b>) -> bool {
+    crl.iter_revoked_certificates().any(|entry| {
+        entry.user_certificate == cert.tbs_certificate.serial
+    })
+}
+
+pub fn get_crl_uri(cert: &X509Certificate) -> Option<String> {
+    let crl_ext= cert.get_extension_unique(&OID_X509_EXT_CRL_DISTRIBUTION_POINTS).unwrap().unwrap();
+    let crl_uri = match crl_ext.parsed_extension() {
+        ParsedExtension::CRLDistributionPoints(crls) => {
+            match &crls.iter().next().unwrap().distribution_point {
+                Some(DistributionPointName::FullName(uri)) => {
+                    let uri = &uri[0];
+                    match uri {
+                        GeneralName::URI(uri) => Some(uri.to_string()),
+                        _ => None,
+                    }
+                },
+                _ => None,
+            }
+        },
+        _ => {
+            unreachable!();
+        },
+    };
+    crl_uri
 }
 
 pub fn get_asn1_bool<'a>(bytes: &'a[u8], oid_str: &str) -> (&'a[u8], bool) {
