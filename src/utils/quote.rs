@@ -73,6 +73,9 @@ pub fn verify_quote_dcapv3<'a>(quote: &SgxQuote, collaterals: &IntelCollateralV3
 
     // make sure that all the certificates we are using are not revoked
     let intel_crls = IntelSgxCrls::from_collaterals(collaterals);
+
+    // ZL: Currently don't think this is needed, but for soundness sake we'll add it in
+    // Can consider removing it for the risc0 case.
     intel_crls.is_cert_revoked(&signing_cert);
     intel_crls.is_cert_revoked(&root_cert);
 
