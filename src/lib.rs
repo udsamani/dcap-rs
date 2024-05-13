@@ -53,7 +53,7 @@ mod tests {
         let verified_output = verify_quote_dcapv3(&dcap_quote, &collaterals, current_time);
 
         println!("{:?}", verified_output);
-        let root_hash = hash_cert_keccak256(&collaterals.get_intel_root_ca());
+        let root_hash = hash_cert_keccak256(&collaterals.get_sgx_intel_root_ca());
         let sign_hash = hash_cert_keccak256(&collaterals.get_sgx_tcb_signing());
         println!("{:?}", root_hash);
         println!("{:?}", sign_hash);

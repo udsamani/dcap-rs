@@ -67,7 +67,7 @@ fn verify_qe_report_data(qe_info: &SgxQuoteSignatureData) -> bool {
 
 pub fn verify_quote_dcapv3(quote: &SgxQuote, collaterals: &IntelCollateralV3, current_time: u64) -> VerifiedOutput {
     let signing_cert = collaterals.get_sgx_tcb_signing();
-    let root_cert = collaterals.get_intel_root_ca();
+    let root_cert = collaterals.get_sgx_intel_root_ca();
     let tcbinfov2 = collaterals.get_tcbinfov2();
     let qeidentityv2 = collaterals.get_qeidentityv2();
 
