@@ -334,7 +334,7 @@ impl IntelCollateralV3 {
         self.sgx_pck_processor_crl_der = Some(sgx_pck_processor_crl_der);
     }
 
-    pub fn get_sgx_platform_crl<'a>(&'a self) -> CertificateRevocationList<'a> {
+    pub fn get_sgx_pck_platform_crl<'a>(&'a self) -> CertificateRevocationList<'a> {
         match &self.sgx_pck_platform_crl_der {
             Some(crl_der) => {
                 let crl = parse_crl_der(crl_der);

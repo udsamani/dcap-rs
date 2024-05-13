@@ -66,7 +66,7 @@ impl<'a> IntelSgxCrls<'a> {
     pub fn from_collaterals(collaterals: &'a IntelCollateralV3) -> Self {
         let sgx_root_ca_crl = collaterals.get_sgx_intel_root_ca_crl();
         let sgx_pck_processor_crl = collaterals.get_sgx_pck_processor_crl();
-        let sgx_pck_platform_crl = collaterals.get_sgx_platform_crl();
+        let sgx_pck_platform_crl = collaterals.get_sgx_pck_platform_crl();
 
         Self::new(sgx_root_ca_crl, sgx_pck_processor_crl, sgx_pck_platform_crl)
     }
