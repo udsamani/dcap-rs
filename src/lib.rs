@@ -39,7 +39,7 @@ mod tests {
 
         let mut collaterals = IntelCollateralV3::new();
         collaterals.set_tcbinfov2(include_bytes!("../data/tcbinfov2.json"));
-        collaterals.set_qeidentityv2(include_bytes!("../data/qe_identityv2.json"));
+        collaterals.set_qeidentityv2(include_bytes!("../data/qeidentityv2.json"));
         collaterals.set_intel_root_ca_der(include_bytes!("../data/Intel_SGX_Provisioning_Certification_RootCA.cer"));
         collaterals.set_sgx_tcb_signing_pem(include_bytes!("../data/signing_cert.pem"));
         collaterals.set_sgx_intel_root_ca_crl_der(include_bytes!("../data/intel_root_ca_crl.der"));

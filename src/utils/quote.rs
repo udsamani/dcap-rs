@@ -10,35 +10,35 @@ use crate::utils::tcbinfo::validate_tcbinfov2;
 use crate::utils::crypto::verify_p256_signature_bytes;
 
 
-fn validate_qe_enclave(enclave_report: &SgxEnclaveReport, qe_identityv2: &EnclaveIdentityV2) -> bool {
-    // make sure that the enclave_identityv2 is a qe_identityv2
+fn validate_qe_enclave(enclave_report: &SgxEnclaveReport, qeidentityv2: &EnclaveIdentityV2) -> bool {
+    // make sure that the enclave_identityv2 is a qeidentityv2
     // check that id is "QE" and version is 2
-    if qe_identityv2.enclave_identity.id != "QE" || qe_identityv2.enclave_identity.version != 2 {
+    if qeidentityv2.enclave_identity.id != "QE" || qeidentityv2.enclave_identity.version != 2 {
         return false;
     }
 
-    let mrsigner_ok = enclave_report.mrsigner == hex::decode(&qe_identityv2.enclave_identity.mrsigner).unwrap().as_slice();
-    let isvprodid_ok = enclave_report.isv_prod_id == qe_identityv2.enclave_identity.isvprodid;
+    let mrsigner_ok = enclave_report.mrsigner == hex::decode(&qeidentityv2.enclave_identity.mrsigner).unwrap().as_slice();
+    let isvprodid_ok = enclave_report.isv_prod_id == qeidentityv2.enclave_identity.isvprodid;
 
-    let attributes = hex::decode(&qe_identityv2.enclave_identity.attributes).unwrap();
-    let attributes_mask = hex::decode(&qe_identityv2.enclave_identity.attributes_mask).unwrap();
+    let attributes = hex::decode(&qeidentityv2.enclave_identity.attributes).unwrap();
+    let attributes_mask = hex::decode(&qeidentityv2.enclave_identity.attributes_mask).unwrap();
     let masked_attributes = attributes.iter().zip(attributes_mask.iter()).map(|(a, m)| a & m).collect::<Vec<u8>>();
     let masked_enclave_attributes = enclave_report.attributes.iter().zip(attributes_mask.iter()).map(|(a, m)| a & m).collect::<Vec<u8>>();
     let enclave_attributes_ok = masked_enclave_attributes == masked_attributes;
 
-    let miscselect = hex::decode(&qe_identityv2.enclave_identity.miscselect).unwrap();
-    let miscselect_mask = hex::decode(&qe_identityv2.enclave_identity.miscselect_mask).unwrap();
+    let miscselect = hex::decode(&qeidentityv2.enclave_identity.miscselect).unwrap();
+    let miscselect_mask = hex::decode(&qeidentityv2.enclave_identity.miscselect_mask).unwrap();
     let masked_miscselect = miscselect.iter().zip(miscselect_mask.iter()).map(|(a, m)| a & m).collect::<Vec<u8>>();
     let masked_enclave_miscselect = enclave_report.misc_select.iter().zip(miscselect_mask.iter()).map(|(a, m)| a & m).collect::<Vec<u8>>();
     let enclave_miscselect_ok = masked_enclave_miscselect == masked_miscselect;
 
-    let tcb_status = get_qe_tcbstatus(enclave_report, qe_identityv2);
+    let tcb_status = get_qe_tcbstatus(enclave_report, qeidentityv2);
 
     mrsigner_ok && isvprodid_ok && enclave_attributes_ok && enclave_miscselect_ok && tcb_status == TcbStatus::OK
 }
 
-fn get_qe_tcbstatus(enclave_report: &SgxEnclaveReport, qe_identityv2: &EnclaveIdentityV2) -> TcbStatus {
-    for tcb_level in qe_identityv2.enclave_identity.tcb_levels.iter() {
+fn get_qe_tcbstatus(enclave_report: &SgxEnclaveReport, qeidentityv2: &EnclaveIdentityV2) -> TcbStatus {
+    for tcb_level in qeidentityv2.enclave_identity.tcb_levels.iter() {
         if tcb_level.tcb.isvsvn <= enclave_report.isv_svn {
             let tcb_status = match &tcb_level.tcb_status[..] {
                 "UpToDate" => TcbStatus::OK,
@@ -69,7 +69,7 @@ pub fn verify_quote_dcapv3<'a>(quote: &SgxQuote, collaterals: &IntelCollateralV3
     let signing_cert = collaterals.get_sgx_tcb_signing();
     let root_cert = collaterals.get_intel_root_ca();
     let tcbinfov2 = collaterals.tcbinfov2.as_ref().unwrap();
-    let qe_identityv2 = collaterals.qe_identityv2.as_ref().unwrap();
+    let qeidentityv2 = collaterals.qeidentityv2.as_ref().unwrap();
 
     // make sure that all the certificates we are using are not revoked
     let intel_crls = IntelSgxCrls::from_collaterals(collaterals);
@@ -85,7 +85,7 @@ pub fn verify_quote_dcapv3<'a>(quote: &SgxQuote, collaterals: &IntelCollateralV3
 
     // check that tcb_info_root and enclave_identity_root are valid
     assert!(validate_tcbinfov2(&tcbinfov2, &signing_cert, current_time));
-    assert!(validate_enclave_identityv2(&qe_identityv2, &signing_cert, current_time));
+    assert!(validate_enclave_identityv2(&qeidentityv2, &signing_cert, current_time));
 
     // we'll extract the ISV (local enclave AKA the enclave that is attesting) report from the quote 
     let isv_enclave_report = quote.isv_enclave_report;
@@ -135,7 +135,7 @@ pub fn verify_quote_dcapv3<'a>(quote: &SgxQuote, collaterals: &IntelCollateralV3
     // qe enclave is signed by intel
 
     // ensure that qe enclave matches with qeidentity
-    assert!(validate_qe_enclave(&ecdsa_quote_signature_data.qe_report, &qe_identityv2));
+    assert!(validate_qe_enclave(&ecdsa_quote_signature_data.qe_report, &qeidentityv2));
     
     // ensure that qe_report_data is correct
     assert!(verify_qe_report_data(&ecdsa_quote_signature_data));

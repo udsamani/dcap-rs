@@ -27,7 +27,7 @@ pub enum TcbStatus {
 #[derive(Clone, Debug)]
 pub struct IntelCollateralV3 {
     pub tcbinfov2: Option<TcbInfoV2>,
-    pub qe_identityv2: Option<EnclaveIdentityV2>,
+    pub qeidentityv2: Option<EnclaveIdentityV2>,
     pub intel_root_ca_der: Option<Vec<u8>>,
     pub sgx_tcb_signing_der: Option<Vec<u8>>,
     pub sgx_pck_certchain_der: Option<Vec<u8>>,
@@ -41,7 +41,7 @@ impl IntelCollateralV3 {
     pub fn new() -> IntelCollateralV3 {
         IntelCollateralV3 {
             tcbinfov2: None,
-            qe_identityv2: None,
+            qeidentityv2: None,
             intel_root_ca_der: None,
             sgx_tcb_signing_der: None,
             sgx_pck_certchain_der: None,
@@ -62,8 +62,8 @@ impl IntelCollateralV3 {
             None => vec![],
         };
 
-        let qe_identityv2_bytes = match self.qe_identityv2 {
-            Some(ref qe_identityv2) => serde_json::to_vec(qe_identityv2).unwrap(),
+        let qeidentityv2_bytes = match self.qeidentityv2 {
+            Some(ref qeidentityv2) => serde_json::to_vec(qeidentityv2).unwrap(),
             None => vec![],
         };
 
@@ -98,12 +98,12 @@ impl IntelCollateralV3 {
         };
 
         // get the total length
-        let total_length = 4 * 8 + tcbinfov2_bytes.len() + qe_identityv2_bytes.len() + intel_root_ca_der_bytes.len() + sgx_tcb_signing_der_bytes.len() + sgx_pck_certchain_der_bytes.len() + sgx_intel_root_ca_crl_der_bytes.len() + sgx_pck_processor_crl_der_bytes.len() + sgx_pck_platform_crl_der_bytes.len();
+        let total_length = 4 * 8 + tcbinfov2_bytes.len() + qeidentityv2_bytes.len() + intel_root_ca_der_bytes.len() + sgx_tcb_signing_der_bytes.len() + sgx_pck_certchain_der_bytes.len() + sgx_intel_root_ca_crl_der_bytes.len() + sgx_pck_processor_crl_der_bytes.len() + sgx_pck_platform_crl_der_bytes.len();
 
         // create the vec and copy the data
         let mut data = Vec::with_capacity(total_length);
         data.extend_from_slice(&(tcbinfov2_bytes.len() as u32).to_le_bytes());
-        data.extend_from_slice(&(qe_identityv2_bytes.len() as u32).to_le_bytes());
+        data.extend_from_slice(&(qeidentityv2_bytes.len() as u32).to_le_bytes());
         data.extend_from_slice(&(intel_root_ca_der_bytes.len() as u32).to_le_bytes());
         data.extend_from_slice(&(sgx_tcb_signing_der_bytes.len() as u32).to_le_bytes());
         data.extend_from_slice(&(sgx_pck_certchain_der_bytes.len() as u32).to_le_bytes());
@@ -112,7 +112,7 @@ impl IntelCollateralV3 {
         data.extend_from_slice(&(sgx_pck_platform_crl_der_bytes.len() as u32).to_le_bytes());
 
         data.extend_from_slice(&tcbinfov2_bytes);
-        data.extend_from_slice(&qe_identityv2_bytes);
+        data.extend_from_slice(&qeidentityv2_bytes);
         data.extend_from_slice(&intel_root_ca_der_bytes);
         data.extend_from_slice(&sgx_tcb_signing_der_bytes);
         data.extend_from_slice(&sgx_pck_certchain_der_bytes);
@@ -127,7 +127,7 @@ impl IntelCollateralV3 {
         // reverse the serialization process
         // each length is 4 bytes long, we have a total of 8 members
         let tcbinfov2_len = u32::from_le_bytes(slice[0..4].try_into().unwrap()) as usize;
-        let qe_identityv2_len = u32::from_le_bytes(slice[4..8].try_into().unwrap()) as usize;
+        let qeidentityv2_len = u32::from_le_bytes(slice[4..8].try_into().unwrap()) as usize;
         let intel_root_ca_der_len = u32::from_le_bytes(slice[8..12].try_into().unwrap()) as usize;
         let sgx_tcb_signing_der_len = u32::from_le_bytes(slice[12..16].try_into().unwrap()) as usize;
         let sgx_pck_certchain_der_len = u32::from_le_bytes(slice[16..20].try_into().unwrap()) as usize;
@@ -142,11 +142,11 @@ impl IntelCollateralV3 {
         };
         offset += tcbinfov2_len;
 
-        let qe_identityv2: Option<EnclaveIdentityV2> = match qe_identityv2_len {
+        let qeidentityv2: Option<EnclaveIdentityV2> = match qeidentityv2_len {
             0 => None,
             len => serde_json::from_slice(&slice[offset..offset + len]).unwrap()
         };
-        offset += qe_identityv2_len;
+        offset += qeidentityv2_len;
 
         let intel_root_ca_der: Option<Vec<u8>> = match intel_root_ca_der_len {
             0 => None,
@@ -188,7 +188,7 @@ impl IntelCollateralV3 {
 
         IntelCollateralV3 {
             tcbinfov2,
-            qe_identityv2,
+            qeidentityv2,
             intel_root_ca_der,
             sgx_tcb_signing_der,
             sgx_pck_certchain_der,
@@ -203,7 +203,7 @@ impl IntelCollateralV3 {
     }
 
     pub fn set_qeidentityv2(&mut self, qeidentityv2_slice: &[u8]) {
-        self.qe_identityv2 = serde_json::from_slice(qeidentityv2_slice).unwrap();
+        self.qeidentityv2 = serde_json::from_slice(qeidentityv2_slice).unwrap();
     }
 
     pub fn get_intel_root_ca<'a>(&'a self) -> X509Certificate<'a> {
