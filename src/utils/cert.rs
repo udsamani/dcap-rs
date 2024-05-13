@@ -10,12 +10,20 @@ use crate::utils::hash::{sha256sum, keccak256sum};
 use crate::utils::crypto::verify_p256_signature_der;
 
 
-pub fn hash_cert_keccak256(cert: &X509Certificate) -> [u8; 32] {
+pub fn hash_x509_keccak256(cert: &X509Certificate) -> [u8; 32] {
     keccak256sum(cert.tbs_certificate.as_ref())
 }
 
-pub fn hash_cert_sha256(cert: &X509Certificate) -> [u8; 32] {
+pub fn hash_x509_sha256(cert: &X509Certificate) -> [u8; 32] {
     sha256sum(cert.tbs_certificate.as_ref())
+}
+
+pub fn hash_crl_keccak256(cert: &CertificateRevocationList) -> [u8; 32] {
+    keccak256sum(cert.tbs_cert_list.as_ref())
+}
+
+pub fn hash_crl_sha256(cert: &CertificateRevocationList) -> [u8; 32] {
+    sha256sum(cert.tbs_cert_list.as_ref())
 }
 
 pub fn pem_to_der(pem_bytes: &[u8]) -> Vec<u8> {

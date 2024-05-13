@@ -5,7 +5,7 @@ use x509_parser::certificate::X509Certificate;
 
 #[cfg(test)]
 mod tests {
-    use crate::{types::IntelCollateralV3, utils::cert::get_crl_uri};
+    use crate::{types::IntelCollateralV3, utils::cert::{get_crl_uri, hash_crl_keccak256}};
 
 
     #[test]
@@ -32,7 +32,7 @@ mod tests {
     fn test_verify() {
         use super::types::quote::SgxQuote;
 
-        use super::utils::cert::hash_cert_keccak256;
+        use super::utils::cert::hash_x509_keccak256;
         use super::utils::quote::verify_quote_dcapv3;
 
         let current_time = chrono::Utc::now().timestamp() as u64;
@@ -53,9 +53,11 @@ mod tests {
         let verified_output = verify_quote_dcapv3(&dcap_quote, &collaterals, current_time);
 
         println!("{:?}", verified_output);
-        let root_hash = hash_cert_keccak256(&collaterals.get_sgx_intel_root_ca());
-        let sign_hash = hash_cert_keccak256(&collaterals.get_sgx_tcb_signing());
+        let root_hash = hash_x509_keccak256(&collaterals.get_sgx_intel_root_ca());
+        let sign_hash = hash_x509_keccak256(&collaterals.get_sgx_tcb_signing());
+        let crl_hash = hash_crl_keccak256(&collaterals.get_sgx_intel_root_ca_crl());
         println!("{:?}", root_hash);
         println!("{:?}", sign_hash);
+        println!("{:?}", crl_hash);
     }
 }
