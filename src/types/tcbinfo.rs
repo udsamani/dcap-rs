@@ -205,6 +205,8 @@ use serde::{Deserialize, Serialize};
 // 
 //                                     "Revoked" - TCB level of SGX platform is revoked.
 //                                     The platform is not trustworthy.
+//                             ZL: This new field is added for v3, seems like a mistake in Intel's documentation.
+//                                 Going to keep it here for now.
 //                             advisoryIDs:
 //                                 type: array
 //                                 description: >-
