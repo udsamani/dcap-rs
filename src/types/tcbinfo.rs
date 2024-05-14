@@ -603,6 +603,7 @@ pub struct TcbInfoV3TcbLevel {
     pub sgxtcbcomponents: Vec<TcbComponents>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tdxtcbcomponents: Option<Vec<TcbComponents>>,
+    pub pcesvn: u64,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
