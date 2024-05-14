@@ -6,7 +6,7 @@ use x509_parser::certificate::X509Certificate;
 #[cfg(test)]
 mod tests {
     use crate::types::tcbinfo::{TcbInfoV2, TcbInfoV3};
-    use crate::types::quote::SgxQuoteV3;
+    use crate::types::quote::{QuoteV4, SgxQuoteV3};
     use crate::types::IntelCollateralV3;
 
     use crate::utils::cert::{hash_x509_keccak256, hash_crl_keccak256, parse_pem, parse_x509_der};
@@ -43,6 +43,12 @@ mod tests {
         assert!(validate_tcbinfov2(&tcbinfov2, &sgx_signing_cert, current_time));
     }
 
+    #[test]
+    fn test_quotev4() {
+        let quotev4_slice = include_bytes!("../data/quote_tdx.dat");
+        let quotev4 = QuoteV4::from_bytes(quotev4_slice);
+        assert_eq!(quotev4.header.version, 4);
+    }
 
     #[test]
     fn test_verify() {
