@@ -5,17 +5,16 @@ use x509_parser::certificate::X509Certificate;
 
 #[cfg(test)]
 mod tests {
-    use crate::types::tcbinfo::TcbInfoV3;
+    use crate::types::tcbinfo::{TcbInfoV2, TcbInfoV3};
     use crate::types::quote::SgxQuote;
     use crate::types::IntelCollateralV3;
 
     use crate::utils::cert::{hash_x509_keccak256, hash_crl_keccak256, parse_pem, parse_x509_der};
-    use crate::utils::tcbinfo::{validate_tcbinfov3};
+    use crate::utils::tcbinfo::{validate_tcbinfov2, validate_tcbinfov3};
     use crate::utils::quote::verify_quote_dcapv3;
 
     #[test]
     fn test_tcbinfov3() {
-
         let current_time = chrono::Utc::now().timestamp() as u64;
 
         let tcbinfov3_json = include_str!("../data/tcbinfov3.json");
@@ -27,6 +26,21 @@ mod tests {
         let sgx_signing_cert = parse_x509_der(&sgx_signing_cert_pem.contents);
 
         assert!(validate_tcbinfov3(&tcbinfov3, &sgx_signing_cert, current_time));
+    }
+
+    #[test]
+    fn test_tcbinfov2() {
+        let current_time = chrono::Utc::now().timestamp() as u64;
+
+        let tcbinfov2_json = include_str!("../data/tcbinfov2.json");
+        let tcbinfov2: TcbInfoV2 = serde_json::from_str(tcbinfov2_json).unwrap();
+        let tcbinfov2_serialize = serde_json::to_string(&tcbinfov2).unwrap();
+        assert!(tcbinfov2_serialize == tcbinfov2_json);
+
+        let sgx_signing_cert_pem = &parse_pem(include_bytes!("../data/signing_cert.pem")).unwrap()[0];
+        let sgx_signing_cert = parse_x509_der(&sgx_signing_cert_pem.contents);
+
+        assert!(validate_tcbinfov2(&tcbinfov2, &sgx_signing_cert, current_time));
     }
 
 
