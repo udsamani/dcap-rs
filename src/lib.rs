@@ -17,7 +17,7 @@ mod tests {
     fn test_tcbinfov3() {
         let current_time = chrono::Utc::now().timestamp() as u64;
 
-        let tcbinfov3_json = include_str!("../data/tcbinfov3.json");
+        let tcbinfov3_json = include_str!("../data/tcbinfov3_sgx.json");
         let tcbinfov3: TcbInfoV3 = serde_json::from_str(tcbinfov3_json).unwrap();
         let tcbinfov3_serialize = serde_json::to_string(&tcbinfov3).unwrap();
         assert!(tcbinfov3_serialize == tcbinfov3_json);
