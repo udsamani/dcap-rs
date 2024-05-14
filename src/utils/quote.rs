@@ -1,5 +1,5 @@
 use crate::types::cert::IntelSgxCrls;
-use crate::types::quote::{SgxQuote, SgxEnclaveReport, SgxQuoteSignatureData};
+use crate::types::quote::{SgxQuoteV3, SgxEnclaveReport, SgxQuoteSignatureDataV3};
 use crate::types::enclave_identity::EnclaveIdentityV2;
 use crate::types::{IntelCollateralV3, TcbStatus, VerifiedOutput};
 
@@ -57,7 +57,7 @@ fn get_qe_tcbstatus(enclave_report: &SgxEnclaveReport, qeidentityv2: &EnclaveIde
     TcbStatus::TcbUnrecognized
 }
 
-fn verify_qe_report_data(qe_info: &SgxQuoteSignatureData) -> bool {
+fn verify_qe_report_data(qe_info: &SgxQuoteSignatureDataV3) -> bool {
     let mut verification_data = Vec::new();
     verification_data.extend_from_slice(&qe_info.ecdsa_attestation_key);
     verification_data.extend_from_slice(&qe_info.qe_auth_data.data);
@@ -65,7 +65,7 @@ fn verify_qe_report_data(qe_info: &SgxQuoteSignatureData) -> bool {
     sha256sum(&verification_data) == qe_info.qe_report.report_data[..32]
 }
 
-pub fn verify_quote_dcapv3(quote: &SgxQuote, collaterals: &IntelCollateralV3, current_time: u64) -> VerifiedOutput {
+pub fn verify_quote_dcapv3(quote: &SgxQuoteV3, collaterals: &IntelCollateralV3, current_time: u64) -> VerifiedOutput {
     let signing_cert = collaterals.get_sgx_tcb_signing();
     let root_cert = collaterals.get_sgx_intel_root_ca();
     let tcbinfov2 = collaterals.get_tcbinfov2();
@@ -92,7 +92,7 @@ pub fn verify_quote_dcapv3(quote: &SgxQuote, collaterals: &IntelCollateralV3, cu
 
     // check that the QE Report is correct
     // we'll first parse the signature into a ECDSA Quote signature data
-    let ecdsa_quote_signature_data =  SgxQuoteSignatureData::from_bytes(&quote.signature);
+    let ecdsa_quote_signature_data =  SgxQuoteSignatureDataV3::from_bytes(&quote.signature);
 
     // verify that the isv_enclave has been signed by the quoting enclave
     let mut data = [0; 48 + 384];

@@ -3,8 +3,8 @@
 // high level sgx quote structure
 // [48 - header] [384 - isv enclave report] [4 - quote signature length] [var - quote signature] 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SgxQuote {
-    pub header: SgxQuoteHeader,                 // [48 bytes]
+pub struct SgxQuoteV3 {
+    pub header: SgxQuoteHeaderV3,               // [48 bytes]
                                                 // Header of Quote data structure. This field is transparent (the user knows
                                                 // its internal structure). Rest of the Quote data structure can be
                                                 // treated as opaque (hidden from the user).
@@ -20,9 +20,9 @@ pub struct SgxQuote {
                                                 // E.g. ECDSA 256-bit Quote Signature Data Structure (SgxQuoteSignatureData)
 }
 
-impl SgxQuote {
-    pub fn from_bytes(raw_bytes: &[u8]) -> SgxQuote {
-        let header = SgxQuoteHeader::from_bytes(&raw_bytes[0..48]);
+impl SgxQuoteV3 {
+    pub fn from_bytes(raw_bytes: &[u8]) -> SgxQuoteV3 {
+        let header = SgxQuoteHeaderV3::from_bytes(&raw_bytes[0..48]);
         let isv_enclave_report = SgxEnclaveReport::from_bytes(&raw_bytes[48..432]);
         let signature_len = u32::from_le_bytes([raw_bytes[432], raw_bytes[433], raw_bytes[434], raw_bytes[435]]);
         // allocate and create a buffer for signature
@@ -30,7 +30,7 @@ impl SgxQuote {
         assert_eq!(signature_slice.len(), signature_len as usize);
         let signature = signature_slice.to_vec();
 
-        SgxQuote {
+        SgxQuoteV3 {
             header,
             isv_enclave_report,
             signature_len,
@@ -40,7 +40,7 @@ impl SgxQuote {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct SgxQuoteHeader {
+pub struct SgxQuoteHeaderV3 {
     pub version: u16,           // [2 bytes]
                                 // version of the quote data structure - 3
     pub att_key_type: u16,      // [2 bytes] 
@@ -61,8 +61,8 @@ pub struct SgxQuoteHeader {
                                 // every quote generated with this QE on this platform.
 }
 
-impl SgxQuoteHeader {
-    pub fn from_bytes(raw_bytes: &[u8]) -> SgxQuoteHeader {
+impl SgxQuoteHeaderV3 {
+    pub fn from_bytes(raw_bytes: &[u8]) -> SgxQuoteHeaderV3 {
         assert_eq!(raw_bytes.len(), 48);
 
         let version = u16::from_le_bytes([raw_bytes[0], raw_bytes[1]]);
@@ -76,7 +76,7 @@ impl SgxQuoteHeader {
         let mut user_data = [0; 20];
         user_data.copy_from_slice(&raw_bytes[28..48]);
 
-        SgxQuoteHeader {
+        SgxQuoteHeaderV3 {
             version,
             att_key_type,
             reserved,
@@ -204,18 +204,18 @@ impl SgxEnclaveReport {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SgxQuoteSignatureData {
+pub struct SgxQuoteSignatureDataV3 {
     pub isv_enclave_report_signature: [u8; 64],     // ECDSA signature, the r component followed by the s component, 2 x 32 bytes.
     pub ecdsa_attestation_key: [u8; 64],            // EC KT-I Public Key, the x-coordinate followed by the y-coordinate 
                                                     // (on the RFC 6090 P-256 curve), 2 x 32 bytes.
     pub qe_report: SgxEnclaveReport,
     pub qe_report_signature: [u8; 64],
-    pub qe_auth_data: SgxQeAuthData,
-    pub qe_cert_data: SgxQeCertData,
+    pub qe_auth_data: SgxQeAuthDataV3,
+    pub qe_cert_data: SgxQeCertDataV3,
 }
 
-impl SgxQuoteSignatureData {
-    pub fn from_bytes(raw_bytes: &[u8]) -> SgxQuoteSignatureData {
+impl SgxQuoteSignatureDataV3 {
+    pub fn from_bytes(raw_bytes: &[u8]) -> SgxQuoteSignatureDataV3 {
         let mut isv_enclave_report_signature = [0u8; 64];
         let mut ecdsa_attestation_key = [0u8; 64];
         let mut qe_report_signature = [0u8; 64];
@@ -224,11 +224,11 @@ impl SgxQuoteSignatureData {
         ecdsa_attestation_key.copy_from_slice(&raw_bytes[64..128]);
         let qe_report = SgxEnclaveReport::from_bytes(&raw_bytes[128..512]);
         qe_report_signature.copy_from_slice(&raw_bytes[512..576]);
-        let qe_auth_data = SgxQeAuthData::from_bytes(&raw_bytes[576..]);
+        let qe_auth_data = SgxQeAuthDataV3::from_bytes(&raw_bytes[576..]);
         let qe_cert_data_start = 576 + 2 + qe_auth_data.size as usize;
-        let qe_cert_data = SgxQeCertData::from_bytes(&raw_bytes[qe_cert_data_start..]);
+        let qe_cert_data = SgxQeCertDataV3::from_bytes(&raw_bytes[qe_cert_data_start..]);
 
-        SgxQuoteSignatureData {
+        SgxQuoteSignatureDataV3 {
             isv_enclave_report_signature,
             ecdsa_attestation_key,
             qe_report,
@@ -241,16 +241,16 @@ impl SgxQuoteSignatureData {
 
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SgxQeAuthData {
+pub struct SgxQeAuthDataV3 {
     pub size: u16,
     pub data: Vec<u8>,
 }
 
-impl SgxQeAuthData {
-    pub fn from_bytes(raw_bytes: &[u8]) -> SgxQeAuthData {
+impl SgxQeAuthDataV3 {
+    pub fn from_bytes(raw_bytes: &[u8]) -> SgxQeAuthDataV3 {
         let size = u16::from_le_bytes([raw_bytes[0], raw_bytes[1]]);
         let data = raw_bytes[2..2+size as usize].to_vec();
-        SgxQeAuthData {
+        SgxQeAuthDataV3 {
             size,
             data,
         }
@@ -258,18 +258,18 @@ impl SgxQeAuthData {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SgxQeCertData {
+pub struct SgxQeCertDataV3 {
     pub cert_data_type: u16,
     pub cert_data_size: u32,
     pub cert_data: Vec<u8>,
 }
 
-impl SgxQeCertData {
-    pub fn from_bytes(raw_bytes: &[u8]) -> SgxQeCertData {
+impl SgxQeCertDataV3 {
+    pub fn from_bytes(raw_bytes: &[u8]) -> SgxQeCertDataV3 {
         let cert_data_type = u16::from_le_bytes([raw_bytes[0], raw_bytes[1]]);
         let cert_data_size = u32::from_le_bytes([raw_bytes[2], raw_bytes[3], raw_bytes[4], raw_bytes[5]]);
         let cert_data = raw_bytes[6..6+cert_data_size as usize].to_vec();
-        SgxQeCertData {
+        SgxQeCertDataV3 {
             cert_data_type,
             cert_data_size,
             cert_data
