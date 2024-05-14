@@ -7,26 +7,15 @@ use x509_parser::certificate::X509Certificate;
 mod tests {
     use crate::{types::IntelCollateralV3, utils::cert::{get_crl_uri, hash_crl_keccak256}};
 
-
     #[test]
-    fn test_cert_pem_der() {
-        use super::utils::cert::{pem_to_der, parse_x509_der_multi};
+    fn test_tcbinfov3_type() {
+        use crate::types::tcbinfo::TcbInfoV3;
 
-        let signing_cert_pem = include_bytes!("../data/pck_certchain.pem");
-        let der_bytes = pem_to_der(signing_cert_pem);
-        let der_certs= parse_x509_der_multi(&der_bytes);
-        // println!("{:?}", signing_certs);
-        let cert = &der_certs[0];
-        let crl_uri = get_crl_uri(cert);
-
-        println!("{:?}", crl_uri);
-        // println!("{:?}", cert.subject.iter_common_name().next().unwrap().as_str());
-        // println!("{:?}", cert.tbs_certificate.extensions());
-        // println!("{}", der_certs[0].issuer);
-        // println!("{}", der_certs[0].subject);
-        // println!("{}", der_certs[0].validity.not_after);
-        // println!("{}", der_certs[0].validity.not_before);
+        let tcbinfov3_json = include_bytes!("../data/tcbinfov3.json");
+        let tcbinfov3: TcbInfoV3 = serde_json::from_slice(tcbinfov3_json).unwrap();
+        println!("{:?}", tcbinfov3);
     }
+
 
     #[test]
     fn test_verify() {
