@@ -51,8 +51,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify() {
-
+    fn test_verifyv3() {
         let current_time = chrono::Utc::now().timestamp() as u64;
 
         let mut collaterals = IntelCollateralV3::new();
