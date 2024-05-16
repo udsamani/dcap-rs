@@ -49,13 +49,13 @@ pub struct PckPlatformConfiguration {
 
 #[derive(Debug)]
 pub struct IntelSgxCrls<'a> {
-    pub sgx_root_ca_crl: CertificateRevocationList<'a>,
-    pub sgx_pck_processor_crl: CertificateRevocationList<'a>,
-    pub sgx_pck_platform_crl: CertificateRevocationList<'a>,
+    pub sgx_root_ca_crl: Option<CertificateRevocationList<'a>>,
+    pub sgx_pck_processor_crl: Option<CertificateRevocationList<'a>>,
+    pub sgx_pck_platform_crl: Option<CertificateRevocationList<'a>>,
 }
 
 impl<'a> IntelSgxCrls<'a> {
-    pub fn new(sgx_root_ca_crl: CertificateRevocationList<'a>, sgx_pck_processor_crl: CertificateRevocationList<'a>, sgx_pck_platform_crl: CertificateRevocationList<'a>) -> Self {
+    pub fn new(sgx_root_ca_crl: Option<CertificateRevocationList<'a>>, sgx_pck_processor_crl: Option<CertificateRevocationList<'a>>, sgx_pck_platform_crl: Option<CertificateRevocationList<'a>>) -> Self {
         Self {
             sgx_root_ca_crl,
             sgx_pck_processor_crl,
@@ -75,11 +75,11 @@ impl<'a> IntelSgxCrls<'a> {
         let crl = match get_crl_uri(cert) {
             Some(crl_uri) => {
                 if crl_uri.contains("https://api.trustedservices.intel.com/sgx/certification/v3/pckcrl?ca=platform") {
-                    &self.sgx_pck_platform_crl
+                    self.sgx_pck_platform_crl.as_ref()
                 } else if crl_uri.contains("https://api.trustedservices.intel.com/sgx/certification/v3/pckcrl?ca=processor") {
-                    &self.sgx_pck_processor_crl
+                    self.sgx_pck_processor_crl.as_ref()
                 } else if crl_uri.contains("https://certificates.trustedservices.intel.com/IntelSGXRootCA.der") {
-                    &self.sgx_root_ca_crl
+                    self.sgx_root_ca_crl.as_ref()
                 } else {
                     panic!("Unknown CRL URI: {}", crl_uri);
                 }
@@ -87,7 +87,7 @@ impl<'a> IntelSgxCrls<'a> {
             None => {
                 panic!("No CRL URI found in certificate");
             }
-        };
+        }.unwrap();
 
         // check if the cert is revoked given the crl
         is_cert_revoked(cert, crl)

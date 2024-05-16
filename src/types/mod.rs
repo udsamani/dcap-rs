@@ -307,13 +307,13 @@ impl IntelCollateral {
         }
     }
 
-    pub fn get_sgx_intel_root_ca_crl<'a>(&'a self) -> CertificateRevocationList<'a> {
+    pub fn get_sgx_intel_root_ca_crl<'a>(&'a self) -> Option<CertificateRevocationList<'a>> {
         match &self.sgx_intel_root_ca_crl_der {
             Some(crl_der) => {
                 let crl = parse_crl_der(crl_der);
-                crl
+                Some(crl)
             },
-            None => panic!("SGX Intel Root CA CRL not set"),
+            None => None,
         }
     }
 
@@ -327,13 +327,13 @@ impl IntelCollateral {
         self.sgx_intel_root_ca_crl_der = Some(sgx_intel_root_ca_crl_der);
     }
 
-    pub fn get_sgx_pck_processor_crl<'a>(&'a self) -> CertificateRevocationList<'a> {
+    pub fn get_sgx_pck_processor_crl<'a>(&'a self) -> Option<CertificateRevocationList<'a>> {
         match &self.sgx_pck_processor_crl_der {
             Some(crl_der) => {
                 let crl = parse_crl_der(crl_der);
-                crl
+                Some(crl)
             },
-            None => panic!("SGX PCK Processor CRL not set"),
+            None => None,
         }
     }
 
@@ -347,13 +347,13 @@ impl IntelCollateral {
         self.sgx_pck_processor_crl_der = Some(sgx_pck_processor_crl_der);
     }
 
-    pub fn get_sgx_pck_platform_crl<'a>(&'a self) -> CertificateRevocationList<'a> {
+    pub fn get_sgx_pck_platform_crl<'a>(&'a self) -> Option<CertificateRevocationList<'a>> {
         match &self.sgx_pck_platform_crl_der {
             Some(crl_der) => {
                 let crl = parse_crl_der(crl_der);
-                crl
+                Some(crl)
             },
-            None => panic!("SGX PCK Platform CRL not set"),
+            None => None, 
         }
     }
 
