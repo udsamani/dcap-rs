@@ -1,5 +1,7 @@
 // https://download.01.org/intel-sgx/latest/dcap-latest/linux/docs/Intel_SGX_ECDSA_QuoteLibReference_DCAP_API.pdf
 
+use super::cert::Certificates;
+
 // high level sgx quote structure
 // [48 - header] [384 - isv enclave report] [4 - quote signature length] [var - quote signature] 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -359,6 +361,19 @@ impl QuoteHeader {
             user_data,
         }
     }
+
+    pub fn to_bytes(&self) -> [u8; 48] {
+        let mut raw_bytes = [0; 48];
+        raw_bytes[0..2].copy_from_slice(&self.version.to_le_bytes());
+        raw_bytes[2..4].copy_from_slice(&self.att_key_type.to_le_bytes());
+        raw_bytes[4..8].copy_from_slice(&self.tee_type.to_le_bytes());
+        raw_bytes[8..10].copy_from_slice(&self.reserved_1);
+        raw_bytes[10..12].copy_from_slice(&self.reserved_2);
+        raw_bytes[12..28].copy_from_slice(&self.qe_vendor_id);
+        raw_bytes[28..48].copy_from_slice(&self.user_data);
+
+        raw_bytes
+    }
 }
 
 // TD Attributes:
@@ -484,6 +499,27 @@ impl QuoteBodyV4 {
             report_data,
         }
     }
+
+    pub fn to_bytes(&self) -> [u8; 584] {
+        let mut raw_bytes = [0; 584];
+        raw_bytes[0..16].copy_from_slice(&self.tee_tcb_svn);
+        raw_bytes[16..64].copy_from_slice(&self.mrseam);
+        raw_bytes[64..112].copy_from_slice(&self.mrsignerseam);
+        raw_bytes[112..120].copy_from_slice(&self.seam_attributes.to_le_bytes());
+        raw_bytes[120..128].copy_from_slice(&self.td_attributes.to_le_bytes());
+        raw_bytes[128..136].copy_from_slice(&self.xfam.to_le_bytes());
+        raw_bytes[136..184].copy_from_slice(&self.mrtd);
+        raw_bytes[184..232].copy_from_slice(&self.mrconfigid);
+        raw_bytes[232..280].copy_from_slice(&self.mrowner);
+        raw_bytes[280..328].copy_from_slice(&self.mrownerconfig);
+        raw_bytes[328..376].copy_from_slice(&self.rtmr0);
+        raw_bytes[376..424].copy_from_slice(&self.rtmr1);
+        raw_bytes[424..472].copy_from_slice(&self.rtmr2);
+        raw_bytes[472..520].copy_from_slice(&self.rtmr3);
+        raw_bytes[520..584].copy_from_slice(&self.report_data);
+
+        raw_bytes
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -550,6 +586,30 @@ impl QeCertDataV4 {
             cert_data,
         }
     }
+
+    pub fn get_cert_data(&self) -> CertDataType {
+        match self.cert_data_type {
+            1 => CertDataType::Type1(self.cert_data.clone()),
+            2 => CertDataType::Type2(self.cert_data.clone()),
+            3 => CertDataType::Type3(self.cert_data.clone()),
+            4 => CertDataType::Type4(self.cert_data.clone()),
+            5 => CertDataType::CertChain(Certificates::from_slice(&self.cert_data)),
+            6 => CertDataType::QeReportCertData(QeReportCertData::from_bytes(&self.cert_data)),
+            7 => CertDataType::Type7(self.cert_data.clone()),
+            _ => CertDataType::Unused,
+        }
+    }
+}
+
+pub enum CertDataType {
+    Unused,
+    Type1(Vec<u8>),
+    Type2(Vec<u8>),
+    Type3(Vec<u8>),
+    Type4(Vec<u8>),
+    CertChain(Certificates),
+    QeReportCertData(QeReportCertData),
+    Type7(Vec<u8>),
 }
 
 #[derive(Clone, Debug)]
