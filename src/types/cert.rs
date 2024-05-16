@@ -3,7 +3,7 @@ use x509_parser::{certificate::X509Certificate, revocation_list::CertificateRevo
 
 use crate::utils::cert::{get_crl_uri, is_cert_revoked};
 
-use super::IntelCollateralV3;
+use super::IntelCollateral;
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -63,7 +63,7 @@ impl<'a> IntelSgxCrls<'a> {
         }
     }
 
-    pub fn from_collaterals(collaterals: &'a IntelCollateralV3) -> Self {
+    pub fn from_collaterals(collaterals: &'a IntelCollateral) -> Self {
         let sgx_root_ca_crl = collaterals.get_sgx_intel_root_ca_crl();
         let sgx_pck_processor_crl = collaterals.get_sgx_pck_processor_crl();
         let sgx_pck_platform_crl = collaterals.get_sgx_pck_platform_crl();
