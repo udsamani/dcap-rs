@@ -1,7 +1,7 @@
 use serde::{Serialize, Deserialize};
 use x509_parser::{certificate::X509Certificate, revocation_list::CertificateRevocationList};
 
-use crate::utils::cert::{get_crl_uri, is_cert_revoked, parse_x509_der_multi};
+use crate::utils::cert::{get_crl_uri, is_cert_revoked, parse_x509_der_multi, pem_to_der};
 
 use super::IntelCollateral;
 
@@ -74,9 +74,11 @@ impl<'a> IntelSgxCrls<'a> {
     pub fn is_cert_revoked(&self, cert: &X509Certificate) -> bool {
         let crl = match get_crl_uri(cert) {
             Some(crl_uri) => {
-                if crl_uri.contains("https://api.trustedservices.intel.com/sgx/certification/v3/pckcrl?ca=platform") {
+                if crl_uri.contains("https://api.trustedservices.intel.com/sgx/certification/v3/pckcrl?ca=platform")
+                    || crl_uri.contains("https://api.trustedservices.intel.com/sgx/certification/v4/pckcrl?ca=platform") {
                     self.sgx_pck_platform_crl.as_ref()
-                } else if crl_uri.contains("https://api.trustedservices.intel.com/sgx/certification/v3/pckcrl?ca=processor") {
+                } else if crl_uri.contains("https://api.trustedservices.intel.com/sgx/certification/v3/pckcrl?ca=processor")
+                    || crl_uri.contains("https://api.trustedservices.intel.com/sgx/certification/v4/pckcrl?ca=processor") {
                     self.sgx_pck_processor_crl.as_ref()
                 } else if crl_uri.contains("https://certificates.trustedservices.intel.com/IntelSGXRootCA.der") {
                     self.sgx_root_ca_crl.as_ref()
@@ -100,11 +102,17 @@ pub struct Certificates {
 }
 
 impl Certificates {
-    pub fn from_slice(certs_der: &[u8]) -> Self {
+    pub fn from_der(certs_der: &[u8]) -> Self {
         Self {
             certs_der: certs_der.to_vec(),
         }
     }
+
+    pub fn from_pem(pem_bytes: &[u8]) -> Self {
+        let certs_der = pem_to_der(pem_bytes);
+        Self::from_der(&certs_der)
+    }
+
     pub fn get_certs(&self) -> Vec<X509Certificate> {
         let certs = parse_x509_der_multi(&self.certs_der);
         certs
