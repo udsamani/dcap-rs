@@ -7,11 +7,19 @@ use x509_parser::certificate::X509Certificate;
 mod tests {
     use crate::types::tcbinfo::{TcbInfoV2, TcbInfoV3};
     use crate::types::quote::{QuoteV4, SgxQuoteV3};
-    use crate::types::IntelCollateralV3;
+    use crate::types::IntelCollateral;
 
-    use crate::utils::cert::{hash_x509_keccak256, hash_crl_keccak256, parse_pem, parse_x509_der};
+    use crate::utils::cert::{hash_crl_keccak256, hash_x509_keccak256, parse_crl_der, parse_pem, parse_x509_der, verify_crl};
     use crate::utils::tcbinfo::{validate_tcbinfov2, validate_tcbinfov3};
-    use crate::utils::quote::verify_quote_dcapv3;
+    use crate::utils::quote::{verify_quote_dcapv3, verify_quote_dcapv4};
+
+    #[test]
+    fn test_temp() {
+        let intel_sgx_root_ca = parse_x509_der(include_bytes!("../data/Intel_SGX_Provisioning_Certification_RootCA.cer"));
+        let intel_sgx_root_ca_crl = parse_crl_der(include_bytes!("../data/intel_root_ca_crl.der"));
+
+        assert!(verify_crl(&intel_sgx_root_ca_crl, &intel_sgx_root_ca));
+    }
 
     #[test]
     fn test_tcbinfov3() {
@@ -45,7 +53,7 @@ mod tests {
 
     #[test]
     fn test_quotev4() {
-        let quotev4_slice = include_bytes!("../data/quote_tdx.dat");
+        let quotev4_slice = include_bytes!("../data/quote_tdx_00806f050000.dat");
         let quotev4 = QuoteV4::from_bytes(quotev4_slice);
         assert_eq!(quotev4.header.version, 4);
     }
@@ -54,9 +62,9 @@ mod tests {
     fn test_verifyv3() {
         let current_time = chrono::Utc::now().timestamp() as u64;
 
-        let mut collaterals = IntelCollateralV3::new();
-        collaterals.set_tcbinfov2(include_bytes!("../data/tcbinfov2.json"));
-        collaterals.set_qeidentityv2(include_bytes!("../data/qeidentityv2.json"));
+        let mut collaterals = IntelCollateral::new();
+        collaterals.set_tcbinfo_bytes(include_bytes!("../data/tcbinfov2.json"));
+        collaterals.set_qeidentity_bytes(include_bytes!("../data/qeidentityv2.json"));
         collaterals.set_intel_root_ca_der(include_bytes!("../data/Intel_SGX_Provisioning_Certification_RootCA.cer"));
         collaterals.set_sgx_tcb_signing_pem(include_bytes!("../data/signing_cert.pem"));
         collaterals.set_sgx_intel_root_ca_crl_der(include_bytes!("../data/intel_root_ca_crl.der"));
@@ -72,7 +80,34 @@ mod tests {
         println!("{:?}", verified_output);
         let root_hash = hash_x509_keccak256(&collaterals.get_sgx_intel_root_ca());
         let sign_hash = hash_x509_keccak256(&collaterals.get_sgx_tcb_signing());
-        let crl_hash = hash_crl_keccak256(&collaterals.get_sgx_intel_root_ca_crl());
+        let crl_hash = hash_crl_keccak256(&collaterals.get_sgx_intel_root_ca_crl().unwrap());
+        println!("{:?}", root_hash);
+        println!("{:?}", sign_hash);
+        println!("{:?}", crl_hash);
+    }
+
+    #[test]
+    fn test_verifyv4() {
+        let current_time = chrono::Utc::now().timestamp() as u64;
+
+        let mut collaterals = IntelCollateral::new();
+        collaterals.set_tcbinfo_bytes(include_bytes!("../data/tcbinfov3_00806f050000.json"));
+        collaterals.set_qeidentity_bytes(include_bytes!("../data/qeidentityv2_apiv4.json"));
+        collaterals.set_intel_root_ca_der(include_bytes!("../data/Intel_SGX_Provisioning_Certification_RootCA.cer"));
+        collaterals.set_sgx_tcb_signing_pem(include_bytes!("../data/signing_cert.pem"));
+        collaterals.set_sgx_intel_root_ca_crl_der(include_bytes!("../data/intel_root_ca_crl.der"));
+        collaterals.set_sgx_platform_crl_der(include_bytes!("../data/pck_platform_crl.der"));
+        collaterals.set_sgx_processor_crl_der(include_bytes!("../data/pck_processor_crl.der"));
+
+
+        let dcap_quote = QuoteV4::from_bytes(include_bytes!("../data/quote_tdx_00806f050000.dat"));
+
+        let verified_output = verify_quote_dcapv4(&dcap_quote, &collaterals, current_time);
+
+        println!("{:?}", verified_output);
+        let root_hash = hash_x509_keccak256(&collaterals.get_sgx_intel_root_ca());
+        let sign_hash = hash_x509_keccak256(&collaterals.get_sgx_tcb_signing());
+        let crl_hash = hash_crl_keccak256(&collaterals.get_sgx_intel_root_ca_crl().unwrap());
         println!("{:?}", root_hash);
         println!("{:?}", sign_hash);
         println!("{:?}", crl_hash);
