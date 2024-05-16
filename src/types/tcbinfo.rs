@@ -574,7 +574,9 @@ pub struct TcbInfoV3Inner {
     pub tcb_type: u64,
     pub tcb_evaluation_data_number: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub tdx_module: Option<Vec<TdxModule>>,
+    pub tdx_module: Option<TdxModule>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tdx_module_identities: Option<Vec<TdxModuleIdentities>>,
     pub tcb_levels: Vec<TcbInfoV3TcbLevelItem>,
 }
 
@@ -589,26 +591,56 @@ pub struct TdxModule {
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TdxModuleIdentities {
+    pub id: String,                         // Identifier of TDX Module
+    pub mrsigner: String,                   // Base 16-encoded string representation of the measurement of a TDX SEAM module’s signer.
+    pub attributes: String,                 // Base 16-encoded string representation of the byte array (8 bytes) representing attributes "golden" value.
+    pub attributes_mask: String,            // Base 16-encoded string representation of the byte array (8 bytes) representing mask to be applied to TDX SEAM module’s
+                                            // attributes value retrieved from the platform
+    pub tcb_levels: Vec<TdxModuleIdentitiesTcbLevelItem>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TdxModuleIdentitiesTcbLevelItem {
+    pub tcb: TdxModuleIdentitiesTcbLevel,
+    pub tcb_date: String,
+    pub tcb_status: String,
+    #[serde(rename(serialize = "advisoryIDs", deserialize = "advisoryIDs"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub advisory_ids: Option<Vec<String>>,
+
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TdxModuleIdentitiesTcbLevel {
+    pub isvsvn: u64,                        // TDX SEAM module’s ISV SVN
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TcbInfoV3TcbLevelItem {
     pub tcb: TcbInfoV3TcbLevel,
     pub tcb_date: String,
     pub tcb_status: String,
     #[serde(rename(serialize = "advisoryIDs", deserialize = "advisoryIDs"))]
-    pub advisory_ids: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub advisory_ids: Option<Vec<String>>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TcbInfoV3TcbLevel {
-    pub sgxtcbcomponents: Vec<TcbComponents>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tdxtcbcomponents: Option<Vec<TcbComponents>>,
+    pub sgxtcbcomponents: Vec<TcbComponent>,
     pub pcesvn: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tdxtcbcomponents: Option<Vec<TcbComponent>>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TcbComponents {
+pub struct TcbComponent {
     pub svn: u64,                                                   // SVN of TCB Component.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,                                   // Category of TCB Component (e.g. BIOS, OS/VMM).
