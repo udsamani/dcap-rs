@@ -551,3 +551,35 @@ impl QeCertDataV4 {
         }
     }
 }
+
+#[derive(Clone, Debug)]
+pub struct QeReportCertData {
+    pub qe_report: SgxEnclaveReport,
+    pub qe_report_signature: [u8; 64],
+    pub qe_auth_data: SgxQeAuthDataV3,
+    pub qe_cert_data: QeCertDataV4,
+}
+
+impl QeReportCertData {
+    pub fn from_bytes(raw_bytes: &[u8]) -> Self {
+        // 384 bytes for qe_report
+        let qe_report = SgxEnclaveReport::from_bytes(&raw_bytes[0..384]);
+        // 64 bytes for qe_report_signature
+        let mut qe_report_signature = [0; 64];
+        qe_report_signature.copy_from_slice(&raw_bytes[384..448]);
+        // qe auth data is variable length, we'll pass remaining bytes to the from_bytes method
+        let qe_auth_data = SgxQeAuthDataV3::from_bytes(&raw_bytes[448..]);
+        // get the length of qe_auth_data
+        let qe_auth_data_size = 2 + qe_auth_data.size as usize;
+        // finish off with the parsing of qe_cert_data
+        let qe_cert_data_start = 448 + qe_auth_data_size;
+        let qe_cert_data = QeCertDataV4::from_bytes(&raw_bytes[qe_cert_data_start..]);
+
+        QeReportCertData {
+            qe_report,
+            qe_report_signature,
+            qe_auth_data,
+            qe_cert_data,
+        }
+    }
+}
