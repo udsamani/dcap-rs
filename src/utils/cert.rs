@@ -84,7 +84,24 @@ pub fn verify_certificate(cert: &X509Certificate, signer_cert: &X509Certificate)
     let data = cert.tbs_certificate.as_ref();
     let signature = cert.signature_value.as_ref();
     let public_key = signer_cert.public_key().subject_public_key.as_ref();
+    // make sure that the issuer is the signer
+    if cert.issuer() != signer_cert.subject() {
+        return false;
+    }
     verify_p256_signature_der(data, signature, public_key)
+}
+
+pub fn verify_crl(crl: &CertificateRevocationList, signer_cert: &X509Certificate) -> bool {
+    // verifies that the crl is valid
+    let data = crl.tbs_cert_list.as_ref();
+    let signature = crl.signature_value.as_ref();
+    let public_key = signer_cert.public_key().subject_public_key.as_ref();
+    // make sure that the issuer is the signer
+    if crl.issuer() != signer_cert.subject() {
+        return false;
+    }
+    verify_p256_signature_der(data, signature, public_key)
+
 }
 
 pub fn validate_certificate(_cert: &X509Certificate, crl: &CertificateRevocationList, subject_name: &str, issuer_name: &str, current_time: u64) -> bool {
