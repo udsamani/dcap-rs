@@ -115,8 +115,6 @@ use serde::{Deserialize, Serialize};
 // 
 //                                     "Revoked" - TCB level of SGX platform is revoked.
 //                                     The platform is not trustworthy.
-//                             ZL: This new field is added for v3, seems like a mistake in Intel's documentation.
-//                                 Going to keep it here for now.
 //                             advisoryIDs:
 //                                 type: array
 //                                 description: >-
@@ -163,6 +161,9 @@ pub struct EnclaveIdentityV2TcbLevelItem {
     pub tcb: EnclaveIdentityV2TcbLevel,
     pub tcb_date: String,
     pub tcb_status: String,
+    #[serde(rename(serialize = "advisoryIDs", deserialize = "advisoryIDs"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub advisory_ids: Option<Vec<String>>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
