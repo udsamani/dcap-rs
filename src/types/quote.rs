@@ -593,7 +593,7 @@ impl QeCertDataV4 {
             2 => CertDataType::Type2(self.cert_data.clone()),
             3 => CertDataType::Type3(self.cert_data.clone()),
             4 => CertDataType::Type4(self.cert_data.clone()),
-            5 => CertDataType::CertChain(Certificates::from_slice(&self.cert_data)),
+            5 => CertDataType::CertChain(Certificates::from_pem(&self.cert_data)),
             6 => CertDataType::QeReportCertData(QeReportCertData::from_bytes(&self.cert_data)),
             7 => CertDataType::Type7(self.cert_data.clone()),
             _ => CertDataType::Unused,
