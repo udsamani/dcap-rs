@@ -4,7 +4,7 @@ use x509_parser::oid_registry::asn1_rs::{Boolean, Sequence, FromDer, Oid, Intege
 
 
 use crate::types::cert::{SgxExtensions, SgxExtensionTcbLevel, PckPlatformConfiguration};
-use crate::types::tcbinfo::TcbInfoV2;
+use crate::types::tcbinfo::{TcbComponent, TcbInfoV2, TcbInfoV3};
 use crate::types::TcbStatus;
 use crate::utils::hash::{sha256sum, keccak256sum};
 use crate::utils::crypto::verify_p256_signature_der;
@@ -421,6 +421,131 @@ pub fn extract_sgx_extension<'a>(cert: &'a X509Certificate<'a>) -> SgxExtensions
     }
 }
 
+pub fn get_tdx_fmspc_tcbstatus_v3(sgx_extensions: &SgxExtensions, tee_tcb_svn: &[u8; 16], tcbinfov3: &TcbInfoV3) -> TcbStatus {
+    // we'll make sure the tcbinforoot is valid
+    // check that fmspc is valid
+    // check that pceid is valid
+
+    // convert fmspc and pceid to string for comparison
+    assert!(hex::encode(sgx_extensions.fmspc) == tcbinfov3.tcb_info.fmspc);
+    assert!(hex::encode(sgx_extensions.pceid) == tcbinfov3.tcb_info.pce_id);
+
+    let extension_pcesvn = sgx_extensions.tcb.pcesvn;
+
+    for tcb_level in tcbinfov3.tcb_info.tcb_levels.iter() {
+        let sgxtcbcomponents_ok = match_sgxtcbcomp(sgx_extensions, &tcb_level.tcb.sgxtcbcomponents);
+        let pcesvn_ok = extension_pcesvn >= tcb_level.tcb.pcesvn;
+        let tdxtcbcomponents_ok = match tcb_level.tcb.tdxtcbcomponents.as_ref() {
+            Some(tdxtcbcomponents) => {
+                tdxtcbcomponents.iter().zip(tee_tcb_svn.iter()).all(|(tcb, tee)| {
+                    *tee >= tcb.svn as u8
+                })
+            },
+            None => true,
+        };
+        if sgxtcbcomponents_ok && pcesvn_ok && tdxtcbcomponents_ok {
+            return TcbStatus::from_str(tcb_level.tcb_status.as_str());
+        }
+    }
+    return TcbStatus::TcbUnrecognized;
+}
+
+fn match_sgxtcbcomp(sgx_extensions: &SgxExtensions, sgxtcbcomponents: &[TcbComponent]) -> bool {
+    let extension_tcbcomponents = extension_to_tcbcomponents(&sgx_extensions.tcb);
+    // Compare all of the SGX TCB Comp SVNs retrieved from the SGX PCK Certificate (from 01 to 16) with the corresponding values of SVNs in sgxtcbcomponents array of TCB Level. 
+    // If all SGX TCB Comp SVNs in the certificate are greater or equal to the corresponding values in TCB Level, then return true.
+    // Otherwise, return false.
+    extension_tcbcomponents.iter().zip(sgxtcbcomponents.iter()).all(|(ext, tcb)| {
+        ext.svn >= tcb.svn
+    })
+}
+
+fn extension_to_tcbcomponents(extension: &SgxExtensionTcbLevel) -> Vec<TcbComponent> {
+    let mut tcbcomponents = Vec::with_capacity(16);
+    tcbcomponents.push(TcbComponent{
+        svn: extension.sgxtcbcomp01svn,
+        category: None,
+        type_: None,
+    });
+    tcbcomponents.push(TcbComponent{
+        svn: extension.sgxtcbcomp02svn,
+        category: None,
+        type_: None,
+    });
+    tcbcomponents.push(TcbComponent{
+        svn: extension.sgxtcbcomp03svn,
+        category: None,
+        type_: None,
+    });
+    tcbcomponents.push(TcbComponent{
+        svn: extension.sgxtcbcomp04svn,
+        category: None,
+        type_: None,
+    });
+    tcbcomponents.push(TcbComponent{
+        svn: extension.sgxtcbcomp05svn,
+        category: None,
+        type_: None,
+    });
+    tcbcomponents.push(TcbComponent{
+        svn: extension.sgxtcbcomp06svn,
+        category: None,
+        type_: None,
+    });
+    tcbcomponents.push(TcbComponent{
+        svn: extension.sgxtcbcomp07svn,
+        category: None,
+        type_: None,
+    });
+    tcbcomponents.push(TcbComponent{
+        svn: extension.sgxtcbcomp08svn,
+        category: None,
+        type_: None,
+    });
+    tcbcomponents.push(TcbComponent{
+        svn: extension.sgxtcbcomp09svn,
+        category: None,
+        type_: None,
+    });
+    tcbcomponents.push(TcbComponent{
+        svn: extension.sgxtcbcomp10svn,
+        category: None,
+        type_: None,
+    });
+    tcbcomponents.push(TcbComponent{
+        svn: extension.sgxtcbcomp11svn,
+        category: None,
+        type_: None,
+    });
+    tcbcomponents.push(TcbComponent{
+        svn: extension.sgxtcbcomp12svn,
+        category: None,
+        type_: None,
+    });
+    tcbcomponents.push(TcbComponent{
+        svn: extension.sgxtcbcomp13svn,
+        category: None,
+        type_: None,
+    });
+    tcbcomponents.push(TcbComponent{
+        svn: extension.sgxtcbcomp14svn,
+        category: None,
+        type_: None,
+    });
+    tcbcomponents.push(TcbComponent{
+        svn: extension.sgxtcbcomp15svn,
+        category: None,
+        type_: None,
+    });
+    tcbcomponents.push(TcbComponent{
+        svn: extension.sgxtcbcomp16svn,
+        category: None,
+        type_: None,
+    });
+
+    tcbcomponents
+}
+
 pub fn get_fmspc_tcbstatus(sgx_extensions: &SgxExtensions, tcb_info_root: &TcbInfoV2) -> TcbStatus {
     // we'll make sure the tcbinforoot is valid
     // check that fmspc is valid
@@ -456,16 +581,7 @@ pub fn get_fmspc_tcbstatus(sgx_extensions: &SgxExtensions, tcb_info_root: &TcbIn
             tcb.sgxtcbcomp16svn <= sgx_extensions.tcb.sgxtcbcomp16svn &&
             tcb.pcesvn <= sgx_extensions.tcb.pcesvn {
                 // println!("tcb_status: {:?}", tcb_level.tcb_status);
-                return match tcb_level.tcb_status.as_str() {
-                    "UpToDate" => TcbStatus::OK,
-                    "SWHardeningNeeded" => TcbStatus::TcbSwHardeningNeeded,
-                    "ConfigurationAndSWHardeningNeeded" => TcbStatus::TcbConfigurationAndSwHardeningNeeded,
-                    "ConfigurationNeeded" => TcbStatus::TcbConfigurationNeeded,
-                    "OutOfDate" => TcbStatus::TcbOutOfDate,
-                    "OutOfDateConfigurationNeeded" => TcbStatus::TcbOutOfDateConfigurationNeeded,
-                    "Revoked" => TcbStatus::TcbRevoked,
-                    _ => TcbStatus::TcbUnrecognized,
-                }
+                return TcbStatus::from_str(tcb_level.tcb_status.as_str());
         }
     }
     // we went through all the tcblevels and didn't find a match
