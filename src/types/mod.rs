@@ -25,6 +25,21 @@ pub enum TcbStatus {
     TcbUnrecognized
 }
 
+impl TcbStatus {
+    pub fn from_str(s: &str) -> Self {
+        return match s {
+            "UpToDate" => TcbStatus::OK,
+            "SWHardeningNeeded" => TcbStatus::TcbSwHardeningNeeded,
+            "ConfigurationAndSWHardeningNeeded" => TcbStatus::TcbConfigurationAndSwHardeningNeeded,
+            "ConfigurationNeeded" => TcbStatus::TcbConfigurationNeeded,
+            "OutOfDate" => TcbStatus::TcbOutOfDate,
+            "OutOfDateConfigurationNeeded" => TcbStatus::TcbOutOfDateConfigurationNeeded,
+            "Revoked" => TcbStatus::TcbRevoked,
+            _ => TcbStatus::TcbUnrecognized,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct IntelCollateral {
     pub tcbinfo_bytes: Option<Vec<u8>>,
