@@ -1,7 +1,7 @@
 use serde::{Serialize, Deserialize};
 use x509_parser::{certificate::X509Certificate, revocation_list::CertificateRevocationList};
 
-use crate::utils::cert::{get_crl_uri, is_cert_revoked};
+use crate::utils::cert::{get_crl_uri, is_cert_revoked, parse_x509_der_multi};
 
 use super::IntelCollateral;
 
@@ -91,5 +91,22 @@ impl<'a> IntelSgxCrls<'a> {
 
         // check if the cert is revoked given the crl
         is_cert_revoked(cert, crl)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Certificates {
+    pub certs_der: Vec<u8>,
+}
+
+impl Certificates {
+    pub fn from_slice(certs_der: &[u8]) -> Self {
+        Self {
+            certs_der: certs_der.to_vec(),
+        }
+    }
+    pub fn get_certs(&self) -> Vec<X509Certificate> {
+        let certs = parse_x509_der_multi(&self.certs_der);
+        certs
     }
 }
