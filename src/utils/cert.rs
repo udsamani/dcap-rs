@@ -165,6 +165,12 @@ pub fn get_x509_subject_cn(cert: &X509Certificate) -> String {
     cn.as_str().unwrap().to_string()
 }
 
+pub fn get_x509_issuer_cn(cert: &X509Certificate) -> String {
+    let issuer = cert.issuer();
+    let cn = issuer.iter_common_name().next().unwrap();
+    cn.as_str().unwrap().to_string()
+}
+
 pub fn get_crl_uri(cert: &X509Certificate) -> Option<String> {
     let crl_ext= cert.get_extension_unique(&OID_X509_EXT_CRL_DISTRIBUTION_POINTS).unwrap().unwrap();
     let crl_uri = match crl_ext.parsed_extension() {

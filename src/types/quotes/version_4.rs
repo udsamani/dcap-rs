@@ -9,7 +9,7 @@ pub struct QuoteV4 {
     pub quote_body: QuoteBody,          // May either contain a SGX Enclave Report (384 bytes) or TD10 Report (584 bytes)
     pub signature_len: u32,             // [4 bytes]
                                         // Size of the Quote Signature Data structure in bytes.
-    pub signature: Vec<u8>,             // [variable bytes]
+    pub signature: QuoteSignatureDataV4,             // [variable bytes]
 }
 
 impl QuoteV4 {
@@ -38,7 +38,7 @@ impl QuoteV4 {
         ]);
         offset += 4;
         let signature_slice = &raw_bytes[offset..offset+signature_len as usize];
-        let signature = signature_slice.to_vec();
+        let signature = QuoteSignatureDataV4::from_bytes(signature_slice);
 
         QuoteV4 {
             header,

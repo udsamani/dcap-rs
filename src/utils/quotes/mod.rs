@@ -1,6 +1,8 @@
 pub mod version_3;
 pub mod version_4;
 
+use x509_parser::certificate::X509Certificate;
+
 use crate::types::enclave_identity::EnclaveIdentityV2;
 use crate::utils::hash::sha256sum;
 
@@ -14,7 +16,7 @@ use crate::types::{IntelCollateral, TcbStatus};
 use crate::utils::enclave_identity::get_qe_tcbstatus;
 
 use crate::utils::cert::{
-    extract_sgx_extension, parse_certchain, parse_pem,
+    extract_sgx_extension, get_x509_issuer_cn, get_x509_subject_cn, parse_certchain, parse_pem,
     verify_certchain_signature, verify_certificate, verify_crl,
 };
 use crate::utils::crypto::verify_p256_signature_bytes;
@@ -49,11 +51,24 @@ fn common_verify_and_fetch_tcb(
 
     // verify that signing_verifying_key is not revoked and signed by the root cert
     let intel_crls = IntelSgxCrls::from_collaterals(collaterals);
-    // TODO: verify CRLs
+
+    // ZL: If collaterals are checked by the caller, then these can be removed
+    // check that CRLs are valid
+    match &intel_crls.sgx_root_ca_crl {
+        Some(crl) => {
+            assert!(verify_crl(crl, &intel_sgx_root_cert));
+        }
+        None => {
+            panic!("No SGX Root CA CRL found");
+        }
+    }
 
     let signing_cert_revoked = intel_crls.is_cert_revoked(&signing_cert);
     assert!(!signing_cert_revoked, "TCB Signing Cert revoked");
-    assert!(verify_certificate(&signing_cert, &intel_sgx_root_cert), "TCB Signing Cert is not signed by Intel SGX Root CA");
+    assert!(
+        verify_certificate(&signing_cert, &intel_sgx_root_cert),
+        "TCB Signing Cert is not signed by Intel SGX Root CA"
+    );
 
     // validate QEIdentity
     let qeidentityv2 = collaterals.get_qeidentityv2();
@@ -64,17 +79,23 @@ fn common_verify_and_fetch_tcb(
     ));
 
     // verify QEReport then get TCB Status
-    assert!(verify_qe_report_data(
-        &qe_report.report_data,
-        &ecdsa_attestation_pubkey,
-        qe_auth_data
-    ), "QE Report Data is incorrect");
-    assert!(validate_qe_report(
-        qe_report,
-        &qeidentityv2
-    ), "QE Report values do not match with the provided QEIdentity");
+    assert!(
+        verify_qe_report_data(
+            &qe_report.report_data,
+            &ecdsa_attestation_pubkey,
+            qe_auth_data
+        ),
+        "QE Report Data is incorrect"
+    );
+    assert!(
+        validate_qe_report(qe_report, &qeidentityv2),
+        "QE Report values do not match with the provided QEIdentity"
+    );
     let qe_tcb_status = get_qe_tcbstatus(qe_report, &qeidentityv2);
-    assert!(qe_tcb_status != TcbStatus::TcbRevoked, "QEIdentity TCB Revoked");
+    assert!(
+        qe_tcb_status != TcbStatus::TcbRevoked,
+        "QEIdentity TCB Revoked"
+    );
 
     // get the certchain embedded in the ecda quote signature data
     // this can be one of 5 types
@@ -87,85 +108,154 @@ fn common_verify_and_fetch_tcb(
     for cert in certchain.iter() {
         assert!(!intel_crls.is_cert_revoked(cert));
     }
+
+    // get the pck certificate, and check whether issuer common name is valid
+    let pck_cert = &certchain[0];
+    let pck_cert_issuer = &certchain[1];
+    assert!(
+        check_pck_issuer_and_crl(pck_cert, pck_cert_issuer, &intel_crls),
+        "Invalid PCK Issuer or CRL"
+    );
+
     // verify that the cert chain signatures are valid
-    assert!(verify_certchain_signature(&certchain, &intel_sgx_root_cert), "Invalid PCK Chain");
+    assert!(
+        verify_certchain_signature(&certchain, &intel_sgx_root_cert),
+        "Invalid PCK Chain"
+    );
 
     // verify the signature for qe report data
     let qe_report_bytes = qe_report.to_bytes();
-    // get the leaf certificate
-    let leaf_cert = parse_certchain(&certchain_pems)[0].clone();
-    let qe_report_public_key = leaf_cert.public_key().subject_public_key.as_ref();
-    assert!(verify_p256_signature_bytes(
-        &qe_report_bytes,
-        qe_report_signature,
-        qe_report_public_key
-    ), "Invalid qe signature");
+
+    let qe_report_public_key = pck_cert.public_key().subject_public_key.as_ref();
+    assert!(
+        verify_p256_signature_bytes(&qe_report_bytes, qe_report_signature, qe_report_public_key),
+        "Invalid qe signature"
+    );
 
     // get the SGX extension
-    let sgx_extensions = extract_sgx_extension(&leaf_cert);
+    let sgx_extensions = extract_sgx_extension(&pck_cert);
 
     // verify the signature for attestation body
     let mut data = Vec::new();
     data.extend_from_slice(&quote_header.to_bytes());
     match quote_body {
-        QuoteBody::SGXQuoteBody(body) => {
-            data.extend_from_slice(&body.to_bytes())
-        },
-        QuoteBody::TD10QuoteBody(body) => {
-            data.extend_from_slice(&body.to_bytes())
-        }
+        QuoteBody::SGXQuoteBody(body) => data.extend_from_slice(&body.to_bytes()),
+        QuoteBody::TD10QuoteBody(body) => data.extend_from_slice(&body.to_bytes()),
     };
 
     // prefix pub key
     let mut prefixed_pub_key = [4; 65];
     prefixed_pub_key[1..65].copy_from_slice(ecdsa_attestation_pubkey);
-    assert!(verify_p256_signature_bytes(
-        &data, 
-        ecdsa_attestation_signature, 
-        &prefixed_pub_key
-    ), "Invalid attestation signature");
+    assert!(
+        verify_p256_signature_bytes(&data, ecdsa_attestation_signature, &prefixed_pub_key),
+        "Invalid attestation signature"
+    );
 
     // validate tcbinfo v2 or v3, depending on the quote version
     let tcb_info: TcbInfo;
     if quote_header.version >= 4 {
         let tcb_info_v3 = collaterals.get_tcbinfov3();
-        assert!(validate_tcbinfov3(&tcb_info_v3, &signing_cert, current_time), "Invalid TCBInfoV3");
+        assert!(
+            validate_tcbinfov3(&tcb_info_v3, &signing_cert, current_time),
+            "Invalid TCBInfoV3"
+        );
         tcb_info = TcbInfo::V3(tcb_info_v3);
     } else {
         let tcb_info_v2 = collaterals.get_tcbinfov2();
-        assert!(validate_tcbinfov2(&tcb_info_v2, &signing_cert, current_time), "Invalid TCBInfoV2");
+        assert!(
+            validate_tcbinfov2(&tcb_info_v2, &signing_cert, current_time),
+            "Invalid TCBInfoV2"
+        );
         tcb_info = TcbInfo::V2(tcb_info_v2);
     }
 
     (qe_tcb_status, sgx_extensions, tcb_info)
 }
 
+fn check_pck_issuer_and_crl(
+    pck_cert: &X509Certificate,
+    pck_issuer_cert: &X509Certificate,
+    intel_crls: &IntelSgxCrls,
+) -> bool {
+    // we'll check what kind of cert is it, and validate the appropriate CRL
+    let pck_cert_subject_cn = get_x509_issuer_cn(pck_cert);
+    let pck_cert_issuer_cn = get_x509_subject_cn(pck_issuer_cert);
+
+    assert!(
+        pck_cert_issuer_cn == pck_cert_subject_cn,
+        "PCK Issuer CN does not match with PCK Intermediate Subject CN"
+    );
+
+    match pck_cert_issuer_cn.as_str() {
+        "Intel SGX PCK Platform CA" => verify_crl(
+            intel_crls.sgx_pck_platform_crl.as_ref().unwrap(),
+            pck_issuer_cert,
+        ),
+        "Intel SGX PCK Processor CA" => verify_crl(
+            &intel_crls.sgx_pck_processor_crl.as_ref().unwrap(),
+            pck_issuer_cert,
+        ),
+        _ => {
+            panic!("Unknown PCK Cert Subject CN: {}", pck_cert_subject_cn);
+        }
+    }
+}
+
 fn validate_qe_report(enclave_report: &EnclaveReport, qeidentityv2: &EnclaveIdentityV2) -> bool {
     // make sure that the enclave_identityv2 is a qeidentityv2
     // check that id is "QE", "TD_QE" or "QVE" and version is 2
-    if !((qeidentityv2.enclave_identity.id == "QE" || qeidentityv2.enclave_identity.id == "TD_QE" || qeidentityv2.enclave_identity.id == "QVE") && qeidentityv2.enclave_identity.version == 2) {
+    if !((qeidentityv2.enclave_identity.id == "QE"
+        || qeidentityv2.enclave_identity.id == "TD_QE"
+        || qeidentityv2.enclave_identity.id == "QVE")
+        && qeidentityv2.enclave_identity.version == 2)
+    {
         return false;
     }
 
-    let mrsigner_ok = enclave_report.mrsigner == hex::decode(&qeidentityv2.enclave_identity.mrsigner).unwrap().as_slice();
+    let mrsigner_ok = enclave_report.mrsigner
+        == hex::decode(&qeidentityv2.enclave_identity.mrsigner)
+            .unwrap()
+            .as_slice();
     let isvprodid_ok = enclave_report.isv_prod_id == qeidentityv2.enclave_identity.isvprodid;
 
     let attributes = hex::decode(&qeidentityv2.enclave_identity.attributes).unwrap();
     let attributes_mask = hex::decode(&qeidentityv2.enclave_identity.attributes_mask).unwrap();
-    let masked_attributes = attributes.iter().zip(attributes_mask.iter()).map(|(a, m)| a & m).collect::<Vec<u8>>();
-    let masked_enclave_attributes = enclave_report.attributes.iter().zip(attributes_mask.iter()).map(|(a, m)| a & m).collect::<Vec<u8>>();
+    let masked_attributes = attributes
+        .iter()
+        .zip(attributes_mask.iter())
+        .map(|(a, m)| a & m)
+        .collect::<Vec<u8>>();
+    let masked_enclave_attributes = enclave_report
+        .attributes
+        .iter()
+        .zip(attributes_mask.iter())
+        .map(|(a, m)| a & m)
+        .collect::<Vec<u8>>();
     let enclave_attributes_ok = masked_enclave_attributes == masked_attributes;
 
     let miscselect = hex::decode(&qeidentityv2.enclave_identity.miscselect).unwrap();
     let miscselect_mask = hex::decode(&qeidentityv2.enclave_identity.miscselect_mask).unwrap();
-    let masked_miscselect = miscselect.iter().zip(miscselect_mask.iter()).map(|(a, m)| a & m).collect::<Vec<u8>>();
-    let masked_enclave_miscselect = enclave_report.misc_select.iter().zip(miscselect_mask.iter()).map(|(a, m)| a & m).collect::<Vec<u8>>();
+    let masked_miscselect = miscselect
+        .iter()
+        .zip(miscselect_mask.iter())
+        .map(|(a, m)| a & m)
+        .collect::<Vec<u8>>();
+    let masked_enclave_miscselect = enclave_report
+        .misc_select
+        .iter()
+        .zip(miscselect_mask.iter())
+        .map(|(a, m)| a & m)
+        .collect::<Vec<u8>>();
     let enclave_miscselect_ok = masked_enclave_miscselect == masked_miscselect;
 
     mrsigner_ok && isvprodid_ok && enclave_attributes_ok && enclave_miscselect_ok
 }
 
-fn verify_qe_report_data(report_data: &[u8], ecdsa_attestation_key: &[u8], qe_auth_data: &[u8]) -> bool {
+fn verify_qe_report_data(
+    report_data: &[u8],
+    ecdsa_attestation_key: &[u8],
+    qe_auth_data: &[u8],
+) -> bool {
     let mut verification_data = Vec::new();
     verification_data.extend_from_slice(ecdsa_attestation_key);
     verification_data.extend_from_slice(qe_auth_data);
@@ -181,16 +271,17 @@ fn converge_tcb_status_with_qe_tcb(tcb_status: TcbStatus, qe_tcb_status: TcbStat
         TcbStatus::TcbOutOfDate => {
             if tcb_status == TcbStatus::OK || tcb_status == TcbStatus::TcbSwHardeningNeeded {
                 converged_tcb_status = TcbStatus::TcbOutOfDate;
-            }
-            else if tcb_status == TcbStatus::TcbConfigurationNeeded || tcb_status == TcbStatus::TcbConfigurationAndSwHardeningNeeded {
+            } else if tcb_status == TcbStatus::TcbConfigurationNeeded
+                || tcb_status == TcbStatus::TcbConfigurationAndSwHardeningNeeded
+            {
                 converged_tcb_status = TcbStatus::TcbOutOfDateConfigurationNeeded;
             } else {
                 converged_tcb_status = tcb_status;
             }
-        },
+        }
         TcbStatus::TcbRevoked => {
             converged_tcb_status = TcbStatus::TcbRevoked;
-        },
+        }
         _ => {
             converged_tcb_status = tcb_status;
         }

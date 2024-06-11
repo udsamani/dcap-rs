@@ -28,8 +28,7 @@ impl QuoteV3 {
         let isv_enclave_report = EnclaveReport::from_bytes(&raw_bytes[48..432]);
         let signature_len = u32::from_le_bytes([raw_bytes[432], raw_bytes[433], raw_bytes[434], raw_bytes[435]]);
         // allocate and create a buffer for signature
-        let signature_slice = &raw_bytes[436..];
-        assert_eq!(signature_slice.len(), signature_len as usize);
+        let signature_slice = &raw_bytes[436..436 + signature_len as usize];
         let signature = QuoteSignatureDataV3::from_bytes(signature_slice);
 
         QuoteV3 {
