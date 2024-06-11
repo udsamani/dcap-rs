@@ -13,7 +13,7 @@ use crate::utils::crypto::verify_p256_signature_bytes;
 use crate::utils::enclave_identity::validate_enclave_identityv2;
 use crate::utils::tcbinfo::validate_tcbinfov3;
 
-use super::{validate_qe_enclave, verify_qe_report_data};
+use super::{validate_qe_report, verify_qe_report_data};
 
 pub fn verify_quote_dcapv4(quote: &QuoteV4, collaterals: &IntelCollateral, current_time: u64) -> VerifiedOutput {
     let tcbinfov3 = collaterals.get_tcbinfov3();
@@ -157,7 +157,7 @@ pub fn verify_quote_dcapv4(quote: &QuoteV4, collaterals: &IntelCollateral, curre
     // all verifications check out, we'll now validate that values are correct
 
     // check that report_data in qe_report is correct
-    validate_qe_enclave(&qe_report_cert_data.qe_report, &qeidentityv2);
+    validate_qe_report(&qe_report_cert_data.qe_report, &qeidentityv2);
 
     // check that tcb_info_root and enclave_identity_root are valid
     assert!(validate_tcbinfov3(
@@ -172,7 +172,7 @@ pub fn verify_quote_dcapv4(quote: &QuoteV4, collaterals: &IntelCollateral, curre
     ));
 
     // ensure that qe enclave matches with qeidentity
-    assert!(validate_qe_enclave(
+    assert!(validate_qe_report(
         &qe_report_cert_data.qe_report,
         &qeidentityv2
     ));

@@ -1,5 +1,10 @@
 use serde::{Deserialize, Serialize};
 
+pub enum TcbInfo {
+    V2(TcbInfoV2),
+    V3(TcbInfoV3)
+}
+
 // TcbInfoV2:
 //     type: object
 //     description: >-
