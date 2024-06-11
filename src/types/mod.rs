@@ -4,11 +4,13 @@ use serde::{Serialize, Deserialize};
 use x509_parser::{certificate::X509Certificate, revocation_list::CertificateRevocationList};
 
 use crate::utils::cert::{parse_crl_der, parse_x509_der, parse_x509_der_multi, pem_to_der};
+use crate::constants::{ENCLAVE_REPORT_LEN, TD10_REPORT_LEN};
 
 use self::enclave_identity::EnclaveIdentityV2;
 use self::tcbinfo::{TcbInfoV2, TcbInfoV3};
+use self::quotes::body::*;
 
-pub mod quote;
+pub mod quotes;
 pub mod tcbinfo;
 pub mod enclave_identity;
 pub mod cert;
@@ -384,67 +386,88 @@ impl IntelCollateral {
 }
 
 // serialization:
-// [tcb_status] [mr_enclave] [mr_signer] [report_data]
-// [ 1 byte   ] [32 bytes  ] [32 bytes ] [64 bytes   ]
-// total: 129 bytes
-#[derive(Clone, Debug)]
+// [quote_vesion][tee_type][tcb_status][fmspc][quote_body_raw_bytes]
+// 2 bytes + 4 bytes + 1 byte + 6 bytes + var (SGX = 384; TDX = 584)
+// total: 13 + var bytes
+#[derive(Debug)]
 pub struct VerifiedOutput {
+    pub quote_version: u16,
+    pub tee_type: u32,
     pub tcb_status: TcbStatus,
-    pub mr_enclave: [u8; 32],
-    pub mr_signer: [u8; 32],
-    pub report_data: [u8; 64],
     pub fmspc: [u8; 6],
+    pub quote_body: QuoteBody
 }
 
-impl VerifiedOutput {
-    pub fn to_bytes(self) -> [u8; 135] {
-        let mut raw_bytes = [0; 135];
-        raw_bytes[0] = match self.tcb_status {
-            TcbStatus::OK => 0,
-            TcbStatus::TcbSwHardeningNeeded => 1,
-            TcbStatus::TcbConfigurationAndSwHardeningNeeded => 2,
-            TcbStatus::TcbConfigurationNeeded => 3,
-            TcbStatus::TcbOutOfDate => 4,
-            TcbStatus::TcbOutOfDateConfigurationNeeded => 5,
-            TcbStatus::TcbRevoked => 6,
-            TcbStatus::TcbUnrecognized => 7,
-        };
-        raw_bytes[1..33].copy_from_slice(&self.mr_enclave);
-        raw_bytes[33..65].copy_from_slice(&self.mr_signer);
-        raw_bytes[65..129].copy_from_slice(&self.report_data);
-        raw_bytes[129..135].copy_from_slice(&self.fmspc);
+// impl VerifiedOutput {
+//     pub fn to_bytes(&self) -> &'static [u8] {
+//         let mut raw_bytes = [];
 
-        raw_bytes
-    }
+//         raw_bytes[0..2].copy_from_slice(&self.quote_version.to_be_bytes());
+//         raw_bytes[2..6].copy_from_slice(&self.tee_type.to_be_bytes());
+//         raw_bytes[6] = match self.tcb_status {
+//             TcbStatus::OK => 0,
+//             TcbStatus::TcbSwHardeningNeeded => 1,
+//             TcbStatus::TcbConfigurationAndSwHardeningNeeded => 2,
+//             TcbStatus::TcbConfigurationNeeded => 3,
+//             TcbStatus::TcbOutOfDate => 4,
+//             TcbStatus::TcbOutOfDateConfigurationNeeded => 5,
+//             TcbStatus::TcbRevoked => 6,
+//             TcbStatus::TcbUnrecognized => 7,
+//         };
+//         raw_bytes[7..13].copy_from_slice(&self.fmspc);
+        
+//         match self.quote_body {
+//             QuoteBody::SGXQuoteBody(body) => {
+//                 raw_bytes[13..13 + ENCLAVE_REPORT_LEN].copy_from_slice(&body.to_bytes());
+//             },
+//             QuoteBody::TD10QuoteBody(body) => {
+//                 raw_bytes[13..13 + TD10_REPORT_LEN].copy_from_slice(&body.to_bytes());
+//             }
+//         }
 
-    pub fn from_bytes(slice: &[u8]) -> VerifiedOutput {
-        let tcb_status = match slice[0] {
-            0 => TcbStatus::OK,
-            1 => TcbStatus::TcbSwHardeningNeeded,
-            2 => TcbStatus::TcbConfigurationAndSwHardeningNeeded,
-            3 => TcbStatus::TcbConfigurationNeeded,
-            4 => TcbStatus::TcbOutOfDate,
-            5 => TcbStatus::TcbOutOfDateConfigurationNeeded,
-            6 => TcbStatus::TcbRevoked,
-            7 => TcbStatus::TcbUnrecognized,
-            _ => panic!("Invalid TCB Status"),
-        };
-        let mut mr_enclave = [0; 32];
-        mr_enclave.copy_from_slice(&slice[1..33]);
-        let mut mr_signer = [0; 32];
-        mr_signer.copy_from_slice(&slice[33..65]);
-        let mut report_data= [0; 64];
-        report_data.copy_from_slice(&slice[65..129]);
-        let mut fmspc = [0; 6];
-        fmspc.copy_from_slice(&slice[129..135]);
+//         raw_bytes.as_slice()
+//     }
 
-        VerifiedOutput {
-            tcb_status,
-            mr_enclave,
-            mr_signer,
-            report_data,
-            fmspc,
-        }
-    }
+//     pub fn from_bytes(slice: &[u8]) -> VerifiedOutput {
+//         let mut quote_version = [0; 2];
+//         quote_version.copy_from_slice(&slice[0..2]);
+//         let mut tee_type = [0; 4];
+//         tee_type.copy_from_slice(&slice[2..6]);
+//         let tcb_status = match slice[6] {
+//             0 => TcbStatus::OK,
+//             1 => TcbStatus::TcbSwHardeningNeeded,
+//             2 => TcbStatus::TcbConfigurationAndSwHardeningNeeded,
+//             3 => TcbStatus::TcbConfigurationNeeded,
+//             4 => TcbStatus::TcbOutOfDate,
+//             5 => TcbStatus::TcbOutOfDateConfigurationNeeded,
+//             6 => TcbStatus::TcbRevoked,
+//             7 => TcbStatus::TcbUnrecognized,
+//             _ => panic!("Invalid TCB Status"),
+//         };
+//         let mut fmspc = [0; 6];
+//         fmspc.copy_from_slice(&slice[7..13]);
+//         let mut raw_quote_body = [0;584];
+//         raw_quote_body.copy_from_slice(&slice[13..]);
+
+//         let quote_body = match raw_quote_body.len() {
+//             ENCLAVE_REPORT_LEN => {
+//                 QuoteBody::SGXQuoteBody(EnclaveReport::from_bytes(&raw_quote_body))
+//             },
+//             TD10_REPORT_LEN => {
+//                 QuoteBody::TD10QuoteBody(TD10ReportBody::from_bytes(&raw_quote_body))
+//             },
+//             _ => {
+//                 panic!("Invalid quote body")
+//             }
+//         };
+
+//         VerifiedOutput {
+//             quote_version: u16::from_be_bytes(quote_version),
+//             tee_type: u32::from_be_bytes(tee_type),
+//             tcb_status,
+//             fmspc,
+//             quote_body
+//         }
+//     }
     
-}
+// }
