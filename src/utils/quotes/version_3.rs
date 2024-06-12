@@ -5,13 +5,15 @@ use crate::types::{
 };
 use crate::utils::cert::get_fmspc_tcbstatus;
 
-use super::{common_verify_and_fetch_tcb, converge_tcb_status_with_qe_tcb};
+use super::{check_quote_header, common_verify_and_fetch_tcb, converge_tcb_status_with_qe_tcb};
 
 pub fn verify_quote_dcapv3(
     quote: &QuoteV3,
     collaterals: &IntelCollateral,
     current_time: u64,
 ) -> VerifiedOutput {
+    assert!(check_quote_header(&quote.header, 3), "invalid quote header");
+
     let quote_body = QuoteBody::SGXQuoteBody(quote.isv_enclave_report);
     let (qe_tcb_status, sgx_extensions, tcb_info) = common_verify_and_fetch_tcb(
         &quote.header,
@@ -41,6 +43,6 @@ pub fn verify_quote_dcapv3(
         tee_type: quote.header.tee_type,
         tcb_status,
         fmspc: sgx_extensions.fmspc,
-        quote_body: QuoteBody::SGXQuoteBody(quote.isv_enclave_report),
+        quote_body: quote_body,
     }
 }

@@ -1,7 +1,10 @@
 // https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/16b7291a7a86e486fdfcf1dfb4be885c0cc00b4e/Src/AttestationLibrary/src/QuoteVerification/QuoteConstants.h
 
-pub const SGX_TEE_TYPE: u32 = 0; // 0x00000000
-pub const TDX_TEE_TYPE: u32 = 129; // 0x00000081
+pub const SGX_TEE_TYPE: u32 = 0x00000000;
+pub const TDX_TEE_TYPE: u32 = 0x00000081;
+
+pub const ECDSA_256_WITH_P256_CURVE: u16 = 2;
+pub const ECDSA_384_WITH_P384_CURVE: u16 = 3;
 
 pub const HEADER_LEN: usize = 48;
 

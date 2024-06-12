@@ -7,15 +7,19 @@ use crate::types::{
     IntelCollateral, VerifiedOutput,
 };
 use crate::utils::cert::get_sgx_tdx_fmspc_tcbstatus_v3;
-use crate::utils::tdx_module::{converge_tcb_status_with_tdx_module_tcb, get_tdx_module_identity_and_tcb};
+use crate::utils::tdx_module::{
+    converge_tcb_status_with_tdx_module_tcb, get_tdx_module_identity_and_tcb,
+};
 
-use super::{common_verify_and_fetch_tcb, converge_tcb_status_with_qe_tcb};
+use super::{check_quote_header, common_verify_and_fetch_tcb, converge_tcb_status_with_qe_tcb};
 
 pub fn verify_quote_dcapv4(
     quote: &QuoteV4,
     collaterals: &IntelCollateral,
     current_time: u64,
 ) -> VerifiedOutput {
+    assert!(check_quote_header(&quote.header, 4), "invalid quote header");
+
     // we'll now proceed to verify the qe
     let qe_cert_data_v4 = &quote.signature.qe_cert_data;
 
@@ -63,11 +67,11 @@ pub fn verify_quote_dcapv4(
     } else {
         tcb_status = tdx_tcb_status;
 
-        // TODO: Fetch TDXModule TCB and TDXModule Identity
+        // Fetch TDXModule TCB and TDXModule Identity
         let (tdx_module_tcb_status, tdx_module_mrsigner, tdx_module_attributes) =
             get_tdx_module_identity_and_tcb(&tee_tcb_svn, &tcb_info_v3);
 
-        // TODO: check TDX module
+        // check TDX module
         let (tdx_report_mrsigner, tdx_report_attributes) = if let Some(tdx_body) = quote_tdx_body {
             (tdx_body.mrsignerseam, tdx_body.seam_attributes)
         } else {
@@ -76,7 +80,10 @@ pub fn verify_quote_dcapv4(
 
         let mr_signer_matched = tdx_module_mrsigner == tdx_report_mrsigner;
         let attributes_matched = tdx_module_attributes == tdx_report_attributes;
-        assert!(mr_signer_matched && attributes_matched, "TDX module values mismatch");
+        assert!(
+            mr_signer_matched && attributes_matched,
+            "TDX module values mismatch"
+        );
 
         tcb_status = converge_tcb_status_with_tdx_module_tcb(tcb_status, tdx_module_tcb_status)
     }

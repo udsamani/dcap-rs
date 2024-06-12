@@ -3,6 +3,7 @@ pub mod version_4;
 
 use x509_parser::certificate::X509Certificate;
 
+use crate::constants::{ECDSA_256_WITH_P256_CURVE, INTEL_QE_VENDOR_ID};
 use crate::types::enclave_identity::EnclaveIdentityV2;
 use crate::utils::hash::sha256sum;
 
@@ -22,6 +23,14 @@ use crate::utils::cert::{
 use crate::utils::crypto::verify_p256_signature_bytes;
 use crate::utils::enclave_identity::validate_enclave_identityv2;
 use crate::utils::tcbinfo::{validate_tcbinfov2, validate_tcbinfov3};
+
+pub fn check_quote_header(quote_header: &QuoteHeader, quote_version: u16) -> bool {
+    let quote_version_is_valid = quote_header.version == quote_version;
+    let att_key_type_is_supported = quote_header.att_key_type == ECDSA_256_WITH_P256_CURVE;
+    let qe_vendor_id_is_valid = quote_header.qe_vendor_id == INTEL_QE_VENDOR_ID;
+
+    quote_version_is_valid && att_key_type_is_supported && qe_vendor_id_is_valid
+}
 
 // verification steps that are required for both SGX and TDX quotes
 // Checks:
