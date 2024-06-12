@@ -4,7 +4,7 @@ use serde::{Serialize, Deserialize};
 use x509_parser::{certificate::X509Certificate, revocation_list::CertificateRevocationList};
 
 use crate::utils::cert::{parse_crl_der, parse_x509_der, parse_x509_der_multi, pem_to_der};
-use crate::constants::{ENCLAVE_REPORT_LEN, TD10_REPORT_LEN};
+use crate::constants::{ENCLAVE_REPORT_LEN, SGX_TEE_TYPE, TD10_REPORT_LEN};
 
 use self::enclave_identity::EnclaveIdentityV2;
 use self::tcbinfo::{TcbInfoV2, TcbInfoV3};
@@ -387,7 +387,7 @@ impl IntelCollateral {
 
 // serialization:
 // [quote_vesion][tee_type][tcb_status][fmspc][quote_body_raw_bytes]
-// 2 bytes + 4 bytes + 1 byte + 6 bytes + var (SGX = 384; TDX = 584)
+// 2 bytes + 4 bytes + 1 byte + 6 bytes + var (SGX_ENCLAVE_REPORT = 384; TD10_REPORT = 584)
 // total: 13 + var bytes
 #[derive(Debug)]
 pub struct VerifiedOutput {
@@ -398,76 +398,84 @@ pub struct VerifiedOutput {
     pub quote_body: QuoteBody
 }
 
-// impl VerifiedOutput {
-//     pub fn to_bytes(&self) -> &'static [u8] {
-//         let mut raw_bytes = [];
+impl VerifiedOutput {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let total_length: usize;
+        // this comparison is wrong and needs to be fixed once we begin supporting v5 quotes
+        if self.tee_type == SGX_TEE_TYPE {
+            total_length = 13 + ENCLAVE_REPORT_LEN;
+        } else {
+            total_length = 13 + TD10_REPORT_LEN;
+        }
 
-//         raw_bytes[0..2].copy_from_slice(&self.quote_version.to_be_bytes());
-//         raw_bytes[2..6].copy_from_slice(&self.tee_type.to_be_bytes());
-//         raw_bytes[6] = match self.tcb_status {
-//             TcbStatus::OK => 0,
-//             TcbStatus::TcbSwHardeningNeeded => 1,
-//             TcbStatus::TcbConfigurationAndSwHardeningNeeded => 2,
-//             TcbStatus::TcbConfigurationNeeded => 3,
-//             TcbStatus::TcbOutOfDate => 4,
-//             TcbStatus::TcbOutOfDateConfigurationNeeded => 5,
-//             TcbStatus::TcbRevoked => 6,
-//             TcbStatus::TcbUnrecognized => 7,
-//         };
-//         raw_bytes[7..13].copy_from_slice(&self.fmspc);
+        let mut output_vec = Vec::with_capacity(total_length);
+
+        output_vec.extend_from_slice(&self.quote_version.to_be_bytes());
+        output_vec.extend_from_slice(&self.tee_type.to_be_bytes());
+        output_vec.push(match self.tcb_status {
+            TcbStatus::OK => 0,
+            TcbStatus::TcbSwHardeningNeeded => 1,
+            TcbStatus::TcbConfigurationAndSwHardeningNeeded => 2,
+            TcbStatus::TcbConfigurationNeeded => 3,
+            TcbStatus::TcbOutOfDate => 4,
+            TcbStatus::TcbOutOfDateConfigurationNeeded => 5,
+            TcbStatus::TcbRevoked => 6,
+            TcbStatus::TcbUnrecognized => 7,
+        });
+        output_vec.extend_from_slice(&self.fmspc);
         
-//         match self.quote_body {
-//             QuoteBody::SGXQuoteBody(body) => {
-//                 raw_bytes[13..13 + ENCLAVE_REPORT_LEN].copy_from_slice(&body.to_bytes());
-//             },
-//             QuoteBody::TD10QuoteBody(body) => {
-//                 raw_bytes[13..13 + TD10_REPORT_LEN].copy_from_slice(&body.to_bytes());
-//             }
-//         }
+        match self.quote_body {
+            QuoteBody::SGXQuoteBody(body) => {
+                output_vec.extend_from_slice(&body.to_bytes());
+            },
+            QuoteBody::TD10QuoteBody(body) => {
+                output_vec.extend_from_slice(&body.to_bytes());
+            }
+        }
 
-//         raw_bytes.as_slice()
-//     }
+        output_vec
+    }
 
-//     pub fn from_bytes(slice: &[u8]) -> VerifiedOutput {
-//         let mut quote_version = [0; 2];
-//         quote_version.copy_from_slice(&slice[0..2]);
-//         let mut tee_type = [0; 4];
-//         tee_type.copy_from_slice(&slice[2..6]);
-//         let tcb_status = match slice[6] {
-//             0 => TcbStatus::OK,
-//             1 => TcbStatus::TcbSwHardeningNeeded,
-//             2 => TcbStatus::TcbConfigurationAndSwHardeningNeeded,
-//             3 => TcbStatus::TcbConfigurationNeeded,
-//             4 => TcbStatus::TcbOutOfDate,
-//             5 => TcbStatus::TcbOutOfDateConfigurationNeeded,
-//             6 => TcbStatus::TcbRevoked,
-//             7 => TcbStatus::TcbUnrecognized,
-//             _ => panic!("Invalid TCB Status"),
-//         };
-//         let mut fmspc = [0; 6];
-//         fmspc.copy_from_slice(&slice[7..13]);
-//         let mut raw_quote_body = [0;584];
-//         raw_quote_body.copy_from_slice(&slice[13..]);
+    pub fn from_bytes(slice: &[u8]) -> VerifiedOutput {
+        let mut quote_version = [0; 2];
+        quote_version.copy_from_slice(&slice[0..2]);
+        let mut tee_type = [0; 4];
+        tee_type.copy_from_slice(&slice[2..6]);
+        let tcb_status = match slice[6] {
+            0 => TcbStatus::OK,
+            1 => TcbStatus::TcbSwHardeningNeeded,
+            2 => TcbStatus::TcbConfigurationAndSwHardeningNeeded,
+            3 => TcbStatus::TcbConfigurationNeeded,
+            4 => TcbStatus::TcbOutOfDate,
+            5 => TcbStatus::TcbOutOfDateConfigurationNeeded,
+            6 => TcbStatus::TcbRevoked,
+            7 => TcbStatus::TcbUnrecognized,
+            _ => panic!("Invalid TCB Status"),
+        };
+        let mut fmspc = [0; 6];
+        fmspc.copy_from_slice(&slice[7..13]);
+        let mut raw_quote_body = Vec::new();
+        raw_quote_body.extend_from_slice(&slice[13..]);
 
-//         let quote_body = match raw_quote_body.len() {
-//             ENCLAVE_REPORT_LEN => {
-//                 QuoteBody::SGXQuoteBody(EnclaveReport::from_bytes(&raw_quote_body))
-//             },
-//             TD10_REPORT_LEN => {
-//                 QuoteBody::TD10QuoteBody(TD10ReportBody::from_bytes(&raw_quote_body))
-//             },
-//             _ => {
-//                 panic!("Invalid quote body")
-//             }
-//         };
+        let quote_body = match raw_quote_body.len() {
+            ENCLAVE_REPORT_LEN => {
+                QuoteBody::SGXQuoteBody(EnclaveReport::from_bytes(&raw_quote_body))
+            },
+            TD10_REPORT_LEN => {
+                QuoteBody::TD10QuoteBody(TD10ReportBody::from_bytes(&raw_quote_body))
+            },
+            _ => {
+                panic!("Invalid quote body")
+            }
+        };
 
-//         VerifiedOutput {
-//             quote_version: u16::from_be_bytes(quote_version),
-//             tee_type: u32::from_be_bytes(tee_type),
-//             tcb_status,
-//             fmspc,
-//             quote_body
-//         }
-//     }
+        VerifiedOutput {
+            quote_version: u16::from_be_bytes(quote_version),
+            tee_type: u32::from_be_bytes(tee_type),
+            tcb_status,
+            fmspc,
+            quote_body
+        }
+    }
     
-// }
+}

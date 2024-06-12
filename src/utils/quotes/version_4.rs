@@ -1,4 +1,4 @@
-use crate::types::quotes::body::{QuoteBody, TD10ReportBody};
+use crate::types::quotes::body::QuoteBody;
 use crate::types::quotes::{version_4::QuoteV4, CertDataType};
 use crate::types::{
     tcbinfo::{TcbInfo, TcbInfoV3},
@@ -13,18 +13,6 @@ pub fn verify_quote_dcapv4(
     collaterals: &IntelCollateral,
     current_time: u64,
 ) -> VerifiedOutput {
-    // TEMP
-    let mut quote_data = Vec::new();
-    quote_data.extend_from_slice(&quote.header.to_bytes());
-    match quote.quote_body {
-        QuoteBody::SGXQuoteBody(body) => {
-            quote_data.extend_from_slice(&body.to_bytes());
-        }
-        QuoteBody::TD10QuoteBody(body) => {
-            quote_data.extend_from_slice(&body.to_bytes());
-        }
-    }
-
     // we'll now proceed to verify the qe
     let qe_cert_data_v4 = &quote.signature.qe_cert_data;
 
@@ -75,14 +63,11 @@ pub fn verify_quote_dcapv4(
 
     tcb_status = converge_tcb_status_with_qe_tcb(tcb_status, qe_tcb_status);
 
-    // TEMP: Cloning TDX body for now, which is kinda dumb. i need to fix this asap
-    let tdx_body_clone = QuoteBody::TD10QuoteBody(TD10ReportBody::from_bytes(&quote_data[48..]));
-
     VerifiedOutput {
         quote_version: quote.header.version,
         tee_type: quote.header.tee_type,
         tcb_status,
         fmspc: sgx_extensions.fmspc,
-        quote_body: tdx_body_clone,
+        quote_body: quote.quote_body,
     }
 }

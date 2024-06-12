@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum QuoteBody {
     SGXQuoteBody(EnclaveReport),
     TD10QuoteBody(TD10ReportBody)
