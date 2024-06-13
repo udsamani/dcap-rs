@@ -8,12 +8,13 @@ use crate::types::enclave_identity::EnclaveIdentityV2;
 use crate::utils::hash::sha256sum;
 
 use crate::types::cert::{IntelSgxCrls, SgxExtensions};
+use crate::types::collaterals::IntelCollateral;
 use crate::types::quotes::{
     body::{EnclaveReport, QuoteBody},
     CertData, QuoteHeader,
 };
 use crate::types::tcbinfo::TcbInfo;
-use crate::types::{IntelCollateral, TcbStatus};
+use crate::types::TcbStatus;
 use crate::utils::enclave_identity::get_qe_tcbstatus;
 
 use crate::utils::cert::{

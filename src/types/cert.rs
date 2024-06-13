@@ -3,7 +3,7 @@ use x509_parser::{certificate::X509Certificate, revocation_list::CertificateRevo
 
 use crate::utils::cert::{get_crl_uri, is_cert_revoked, parse_x509_der_multi, pem_to_der};
 
-use super::IntelCollateral;
+use super::collaterals::IntelCollateral;
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

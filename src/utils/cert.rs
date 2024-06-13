@@ -455,6 +455,50 @@ pub fn extract_sgx_extension<'a>(cert: &'a X509Certificate<'a>) -> SgxExtensions
     }
 }
 
+pub fn get_sgx_fmspc_tcbstatus_v2(sgx_extensions: &SgxExtensions, tcb_info_root: &TcbInfoV2) -> TcbStatus {
+    // we'll make sure the tcbinforoot is valid
+    // check that fmspc is valid
+    // check that pceid is valid
+
+    // convert fmspc and pceid to string for comparison
+    // println!("sgx_extensions fmspc: {:?}", hex::encode(sgx_extensions.fmspc));
+    // println!("tcb_info_root fmspc: {:?}", tcb_info_root.tcb_info.fmspc);
+    assert!(hex::encode(sgx_extensions.fmspc) == tcb_info_root.tcb_info.fmspc);
+    assert!(hex::encode(sgx_extensions.pceid) == tcb_info_root.tcb_info.pce_id);
+
+    // now that we are sure that fmspc and pceid is the same, we'll iterate through and find the tcbstatus
+    // we assume that the tcb_levels are sorted in descending svn order
+    // println!("sgx_extensions tcb: {:?}", sgx_extensions.tcb);
+    for tcb_level in tcb_info_root.tcb_info.tcb_levels.iter() {
+        let tcb = &tcb_level.tcb;
+        // println!("tcb: {:?}", tcb);
+        if tcb.sgxtcbcomp01svn <= sgx_extensions.tcb.sgxtcbcomp01svn
+            && tcb.sgxtcbcomp02svn <= sgx_extensions.tcb.sgxtcbcomp02svn
+            && tcb.sgxtcbcomp03svn <= sgx_extensions.tcb.sgxtcbcomp03svn
+            && tcb.sgxtcbcomp04svn <= sgx_extensions.tcb.sgxtcbcomp04svn
+            && tcb.sgxtcbcomp05svn <= sgx_extensions.tcb.sgxtcbcomp05svn
+            && tcb.sgxtcbcomp06svn <= sgx_extensions.tcb.sgxtcbcomp06svn
+            && tcb.sgxtcbcomp07svn <= sgx_extensions.tcb.sgxtcbcomp07svn
+            && tcb.sgxtcbcomp08svn <= sgx_extensions.tcb.sgxtcbcomp08svn
+            && tcb.sgxtcbcomp09svn <= sgx_extensions.tcb.sgxtcbcomp09svn
+            && tcb.sgxtcbcomp10svn <= sgx_extensions.tcb.sgxtcbcomp10svn
+            && tcb.sgxtcbcomp11svn <= sgx_extensions.tcb.sgxtcbcomp11svn
+            && tcb.sgxtcbcomp12svn <= sgx_extensions.tcb.sgxtcbcomp12svn
+            && tcb.sgxtcbcomp13svn <= sgx_extensions.tcb.sgxtcbcomp13svn
+            && tcb.sgxtcbcomp14svn <= sgx_extensions.tcb.sgxtcbcomp14svn
+            && tcb.sgxtcbcomp15svn <= sgx_extensions.tcb.sgxtcbcomp15svn
+            && tcb.sgxtcbcomp16svn <= sgx_extensions.tcb.sgxtcbcomp16svn
+            && tcb.pcesvn <= sgx_extensions.tcb.pcesvn
+        {
+            // println!("tcb_status: {:?}", tcb_level.tcb_status);
+            return TcbStatus::from_str(tcb_level.tcb_status.as_str());
+        }
+    }
+    // we went through all the tcblevels and didn't find a match
+    // shouldn't happen so we'll toggle an exception
+    unreachable!();
+}
+
 // https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/Checks/TcbLevelCheck.cpp#L129-L181
 pub fn get_sgx_tdx_fmspc_tcbstatus_v3(
     sgx_extensions: &SgxExtensions,
@@ -600,48 +644,4 @@ fn extension_to_tcbcomponents(extension: &SgxExtensionTcbLevel) -> Vec<TcbCompon
     });
 
     tcbcomponents
-}
-
-pub fn get_fmspc_tcbstatus(sgx_extensions: &SgxExtensions, tcb_info_root: &TcbInfoV2) -> TcbStatus {
-    // we'll make sure the tcbinforoot is valid
-    // check that fmspc is valid
-    // check that pceid is valid
-
-    // convert fmspc and pceid to string for comparison
-    // println!("sgx_extensions fmspc: {:?}", hex::encode(sgx_extensions.fmspc));
-    // println!("tcb_info_root fmspc: {:?}", tcb_info_root.tcb_info.fmspc);
-    assert!(hex::encode(sgx_extensions.fmspc) == tcb_info_root.tcb_info.fmspc);
-    assert!(hex::encode(sgx_extensions.pceid) == tcb_info_root.tcb_info.pce_id);
-
-    // now that we are sure that fmspc and pceid is the same, we'll iterate through and find the tcbstatus
-    // we assume that the tcb_levels are sorted in descending svn order
-    // println!("sgx_extensions tcb: {:?}", sgx_extensions.tcb);
-    for tcb_level in tcb_info_root.tcb_info.tcb_levels.iter() {
-        let tcb = &tcb_level.tcb;
-        // println!("tcb: {:?}", tcb);
-        if tcb.sgxtcbcomp01svn <= sgx_extensions.tcb.sgxtcbcomp01svn
-            && tcb.sgxtcbcomp02svn <= sgx_extensions.tcb.sgxtcbcomp02svn
-            && tcb.sgxtcbcomp03svn <= sgx_extensions.tcb.sgxtcbcomp03svn
-            && tcb.sgxtcbcomp04svn <= sgx_extensions.tcb.sgxtcbcomp04svn
-            && tcb.sgxtcbcomp05svn <= sgx_extensions.tcb.sgxtcbcomp05svn
-            && tcb.sgxtcbcomp06svn <= sgx_extensions.tcb.sgxtcbcomp06svn
-            && tcb.sgxtcbcomp07svn <= sgx_extensions.tcb.sgxtcbcomp07svn
-            && tcb.sgxtcbcomp08svn <= sgx_extensions.tcb.sgxtcbcomp08svn
-            && tcb.sgxtcbcomp09svn <= sgx_extensions.tcb.sgxtcbcomp09svn
-            && tcb.sgxtcbcomp10svn <= sgx_extensions.tcb.sgxtcbcomp10svn
-            && tcb.sgxtcbcomp11svn <= sgx_extensions.tcb.sgxtcbcomp11svn
-            && tcb.sgxtcbcomp12svn <= sgx_extensions.tcb.sgxtcbcomp12svn
-            && tcb.sgxtcbcomp13svn <= sgx_extensions.tcb.sgxtcbcomp13svn
-            && tcb.sgxtcbcomp14svn <= sgx_extensions.tcb.sgxtcbcomp14svn
-            && tcb.sgxtcbcomp15svn <= sgx_extensions.tcb.sgxtcbcomp15svn
-            && tcb.sgxtcbcomp16svn <= sgx_extensions.tcb.sgxtcbcomp16svn
-            && tcb.pcesvn <= sgx_extensions.tcb.pcesvn
-        {
-            // println!("tcb_status: {:?}", tcb_level.tcb_status);
-            return TcbStatus::from_str(tcb_level.tcb_status.as_str());
-        }
-    }
-    // we went through all the tcblevels and didn't find a match
-    // shouldn't happen so we'll toggle an exception
-    unreachable!();
 }

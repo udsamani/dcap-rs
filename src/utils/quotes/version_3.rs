@@ -1,9 +1,10 @@
 use crate::types::quotes::{body::QuoteBody, version_3::QuoteV3};
 use crate::types::{
+    collaterals::IntelCollateral,
     tcbinfo::{TcbInfo, TcbInfoV2},
-    IntelCollateral, VerifiedOutput,
+    VerifiedOutput,
 };
-use crate::utils::cert::get_fmspc_tcbstatus;
+use crate::utils::cert::get_sgx_fmspc_tcbstatus_v2;
 
 use super::{check_quote_header, common_verify_and_fetch_tcb, converge_tcb_status_with_qe_tcb};
 
@@ -34,7 +35,7 @@ pub fn verify_quote_dcapv3(
     } else {
         panic!("TcbInfo must be V2!");
     }
-    let mut tcb_status = get_fmspc_tcbstatus(&sgx_extensions, &tcb_info_v2);
+    let mut tcb_status = get_sgx_fmspc_tcbstatus_v2(&sgx_extensions, &tcb_info_v2);
 
     tcb_status = converge_tcb_status_with_qe_tcb(tcb_status, qe_tcb_status);
 

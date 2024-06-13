@@ -4,7 +4,7 @@ use crate::types::quotes::{version_4::QuoteV4, CertDataType};
 use crate::types::TcbStatus;
 use crate::types::{
     tcbinfo::{TcbInfo, TcbInfoV3},
-    IntelCollateral, VerifiedOutput,
+    collaterals::IntelCollateral, VerifiedOutput,
 };
 use crate::utils::cert::get_sgx_tdx_fmspc_tcbstatus_v3;
 use crate::utils::tdx_module::{

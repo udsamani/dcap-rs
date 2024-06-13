@@ -8,7 +8,7 @@ use x509_parser::certificate::X509Certificate;
 mod tests {
     use crate::types::tcbinfo::{TcbInfoV2, TcbInfoV3};
     use crate::types::quotes::{version_4::QuoteV4, version_3::QuoteV3};
-    use crate::types::IntelCollateral;
+    use crate::types::collaterals::IntelCollateral;
 
     use crate::utils::cert::{hash_crl_keccak256, hash_x509_keccak256, parse_crl_der, parse_pem, parse_x509_der, verify_crl};
     use crate::utils::tcbinfo::{validate_tcbinfov2, validate_tcbinfov3};
