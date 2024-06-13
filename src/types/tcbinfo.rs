@@ -1,5 +1,10 @@
 use serde::{Deserialize, Serialize};
 
+pub enum TcbInfo {
+    V2(TcbInfoV2),
+    V3(TcbInfoV3)
+}
+
 // TcbInfoV2:
 //     type: object
 //     description: >-
@@ -239,13 +244,13 @@ pub struct TcbInfoV2 {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TcbInfoV2Inner {
-    pub version: u64,
+    pub version: u32,
     pub issue_date: String,
     pub next_update: String,
     pub fmspc: String,
     pub pce_id: String,
     pub tcb_type: u64,
-    pub tcb_evaluation_data_number: u64,
+    pub tcb_evaluation_data_number: u32,
     pub tcb_levels: Vec<TcbInfoV2TcbLevelItem>,
 }
 
@@ -260,23 +265,23 @@ pub struct TcbInfoV2TcbLevelItem {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TcbInfoV2TcbLevel {
-    pub sgxtcbcomp01svn: u64,
-    pub sgxtcbcomp02svn: u64,
-    pub sgxtcbcomp03svn: u64,
-    pub sgxtcbcomp04svn: u64,
-    pub sgxtcbcomp05svn: u64,
-    pub sgxtcbcomp06svn: u64,
-    pub sgxtcbcomp07svn: u64,
-    pub sgxtcbcomp08svn: u64,
-    pub sgxtcbcomp09svn: u64,
-    pub sgxtcbcomp10svn: u64,
-    pub sgxtcbcomp11svn: u64,
-    pub sgxtcbcomp12svn: u64,
-    pub sgxtcbcomp13svn: u64,
-    pub sgxtcbcomp14svn: u64,
-    pub sgxtcbcomp15svn: u64,
-    pub sgxtcbcomp16svn: u64,
-    pub pcesvn: u64,
+    pub sgxtcbcomp01svn: u8,
+    pub sgxtcbcomp02svn: u8,
+    pub sgxtcbcomp03svn: u8,
+    pub sgxtcbcomp04svn: u8,
+    pub sgxtcbcomp05svn: u8,
+    pub sgxtcbcomp06svn: u8,
+    pub sgxtcbcomp07svn: u8,
+    pub sgxtcbcomp08svn: u8,
+    pub sgxtcbcomp09svn: u8,
+    pub sgxtcbcomp10svn: u8,
+    pub sgxtcbcomp11svn: u8,
+    pub sgxtcbcomp12svn: u8,
+    pub sgxtcbcomp13svn: u8,
+    pub sgxtcbcomp14svn: u8,
+    pub sgxtcbcomp15svn: u8,
+    pub sgxtcbcomp16svn: u8,
+    pub pcesvn: u16,
 }
 // TcbInfoV3:
 //     type: object
@@ -566,13 +571,13 @@ pub struct TcbInfoV3 {
 #[serde(rename_all = "camelCase")]
 pub struct TcbInfoV3Inner {
     pub id: String,
-    pub version: u64,
+    pub version: u32,
     pub issue_date: String,
     pub next_update: String,
     pub fmspc: String,
     pub pce_id: String,
     pub tcb_type: u64,
-    pub tcb_evaluation_data_number: u64,
+    pub tcb_evaluation_data_number: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tdx_module: Option<TdxModule>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -615,7 +620,7 @@ pub struct TdxModuleIdentitiesTcbLevelItem {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TdxModuleIdentitiesTcbLevel {
-    pub isvsvn: u64,                        // TDX SEAM module’s ISV SVN
+    pub isvsvn: u8,                        // TDX SEAM module’s ISV SVN
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -633,7 +638,7 @@ pub struct TcbInfoV3TcbLevelItem {
 #[serde(rename_all = "camelCase")]
 pub struct TcbInfoV3TcbLevel {
     pub sgxtcbcomponents: Vec<TcbComponent>,
-    pub pcesvn: u64,
+    pub pcesvn: u16,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tdxtcbcomponents: Option<Vec<TcbComponent>>,
 }
@@ -641,7 +646,7 @@ pub struct TcbInfoV3TcbLevel {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TcbComponent {
-    pub svn: u64,                                                   // SVN of TCB Component.
+    pub svn: u8,                                                   // SVN of TCB Component.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,                                   // Category of TCB Component (e.g. BIOS, OS/VMM).
     #[serde(skip_serializing_if = "Option::is_none")]
