@@ -460,11 +460,9 @@ pub fn get_sgx_fmspc_tcbstatus_v2(sgx_extensions: &SgxExtensions, tcb_info_root:
     // check that fmspc is valid
     // check that pceid is valid
 
-    // convert fmspc and pceid to string for comparison
-    // println!("sgx_extensions fmspc: {:?}", hex::encode(sgx_extensions.fmspc));
-    // println!("tcb_info_root fmspc: {:?}", tcb_info_root.tcb_info.fmspc);
-    assert!(hex::encode(sgx_extensions.fmspc) == tcb_info_root.tcb_info.fmspc);
-    assert!(hex::encode(sgx_extensions.pceid) == tcb_info_root.tcb_info.pce_id);
+    // convert tcbinfo fmspc and pceid from string to bytes for comparison
+    assert!(sgx_extensions.fmspc.to_vec() == hex::decode(&tcb_info_root.tcb_info.fmspc).unwrap());
+    assert!(sgx_extensions.pceid.to_vec() == hex::decode(&tcb_info_root.tcb_info.pce_id).unwrap());
 
     // now that we are sure that fmspc and pceid is the same, we'll iterate through and find the tcbstatus
     // we assume that the tcb_levels are sorted in descending svn order
@@ -509,9 +507,9 @@ pub fn get_sgx_tdx_fmspc_tcbstatus_v3(
     // check that fmspc is valid
     // check that pceid is valid
 
-    // convert fmspc and pceid to string for comparison
-    assert!(hex::encode(sgx_extensions.fmspc) == tcbinfov3.tcb_info.fmspc);
-    assert!(hex::encode(sgx_extensions.pceid) == tcbinfov3.tcb_info.pce_id);
+    // convert tcbinfo fmspc and pceid from string to bytes for comparison
+    assert!(sgx_extensions.fmspc.to_vec() == hex::decode(&tcbinfov3.tcb_info.fmspc).unwrap());
+    assert!(sgx_extensions.pceid.to_vec() == hex::decode(&tcbinfov3.tcb_info.pce_id).unwrap());
 
     let mut sgx_tcb_status = TcbStatus::TcbUnrecognized;
     let mut tdx_tcb_status = TcbStatus::TcbUnrecognized;
