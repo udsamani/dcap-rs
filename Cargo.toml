@@ -16,6 +16,15 @@ serde_json   = "1.0"
 chrono       = "0.4"
 time         = "0.3.36"
 
-p256         = { git = "https://github.com/automata-network/RustCrypto-elliptic-curves.git" }
+p256         = { version = "0.13.2", optional = true }
 sha2         = { git = "https://github.com/RustCrypto/hashes.git" }
 sha3         = { git = "https://github.com/RustCrypto/hashes.git" }
+
+[dependencies.p256_accelerated]
+package = "p256"
+git = "https://github.com/automata-network/RustCrypto-elliptic-curves.git"
+optional = true
+
+[features]
+default = ["p256"]
+accelerated = ["p256_accelerated"]
