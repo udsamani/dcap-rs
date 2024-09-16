@@ -21,11 +21,16 @@ dcap-rs = { git = "https://github.com/automata-network/dcap-rs.git" }
 
 ### RiscZero Accelerated Crates
 
-This library integrates a modified version of the `p256` crate, that we have built to optimize the cycle costs for ECDSA Verification in the RiscZero Guest program. Check out this [repo](https://github.com/automata-network/RustCrypto-elliptic-curves) and [doc](https://thias-organization.gitbook.io/p256-documentation) to learn more about the accelerated `p256` crate.
+This library can be compiled with the acclerated `p256` crate, to optimize the cycle costs for ECDSA Verification in the RiscZero Guest program. Check out this [repo](https://github.com/automata-network/RustCrypto-elliptic-curves) and [doc](https://thias-organization.gitbook.io/p256-documentation) to learn more about the accelerated `p256` crate.
 
-To ensure full optimization in your Guest program, include the following patch statements in `Cargo.toml`:
+To fully optimize your Guest program, make sure to:
+- enable the `accelerated` feature
+- include the following patch statements in `Cargo.toml`:
 
 ```
+[dependencies]
+dcap-rs = { git = "https://github.com/automata-network/dcap-rs.git" , features = ["accelerated"] }
+
 [patch.crates-io]
 sha2 = { git = "https://github.com/risc0/RustCrypto-hashes", tag = "sha2-v0.10.6-risczero.0" }
 crypto-bigint = { git = "https://github.com/risc0/RustCrypto-crypto-bigint", tag = "v0.5.2-risczero.0" }
