@@ -7,7 +7,7 @@
 </div>
 
 # Automata DCAP Rust Library
-[![Automata On Chain PCCS](https://img.shields.io/badge/Power%20By-Automata-orange.svg)](https://github.com/automata-network)
+[![Automata DCAP Rust Library](https://img.shields.io/badge/Power%20By-Automata-orange.svg)](https://github.com/automata-network)
 
 Intel Data Center Attestation Primitives Quote Verification Library (DCAP QVL) implemented in pure Rust. 
 
