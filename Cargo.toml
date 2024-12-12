@@ -1,7 +1,11 @@
 [package]
 name = "dcap-rs"
+license = "Apache-2.0"
 version = "0.1.0"
 edition = "2021"
+description = "Intel Data Center Attestation Primitives Quote Verification Library (DCAP QVL) implemented in pure Rust."
+repository = "https://github.com/automata-network/dcap-rs"
+keywords = ["dcap", "intel", "quote", "attestation", "sgx", "rust", "library"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
