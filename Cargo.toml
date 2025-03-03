@@ -23,7 +23,15 @@ time         	= { version = "0.3.36" }
 p256         	= { version = "0.13.2" }
 sha2         	= { version = "0.10.8" }
 sha3         	= { version = "0.10.8" }
-alloy-sol-types = { version = "0.8.12" }
+alloy-sol-types = { version = "=0.8.12" }
+alloy-primitives = { version = "=0.8.12" }
+alloy-sol-macro = { version = "=0.8.12" }
+alloy-sol-macro-expander = { version = "=0.8.12" }
+alloy-sol-macro-input = { version = "=0.8.12" }
+syn-solidity = { version = "=0.8.12"}
 
 [features]
 default = []
+
+[patch.crates-io]
+proc-macro-error2 = { git = "https://github.com/udsamani/proc-macro-error-2", branch = "master"}
