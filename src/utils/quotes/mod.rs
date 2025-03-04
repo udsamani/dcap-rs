@@ -33,17 +33,7 @@ fn check_quote_header(quote_header: &QuoteHeader, quote_version: u16) -> bool {
     quote_version_is_valid && att_key_type_is_supported && qe_vendor_id_is_valid
 }
 
-// verification steps that are required for both SGX and TDX quotes
-// Checks:
-// - valid qeidentity
-// - valid tcbinfo
-// - valid pck certificate chain
-// - qe report content
-// - ecdsa verification on qe report data and quote body data
-// Returns:
-// - QEIdentity TCB Status
-// - SGX Extension
-// - TCBInfo (v2 or v3)
+// Split the large function into smaller functions to reduce stack usage
 fn common_verify_and_fetch_tcb(
     quote_header: &QuoteHeader,
     quote_body: &QuoteBody,
@@ -56,14 +46,49 @@ fn common_verify_and_fetch_tcb(
     collaterals: &IntelCollateral,
     current_time: u64,
 ) -> (TcbStatus, SgxExtensions, TcbInfo) {
+    // Step 1: Verify certificates and CRLs
+    verify_certificates_and_crls(collaterals);
+
+    // Step 2: Validate QE identity and get TCB status
+    let qe_tcb_status = verify_qe_identity(qe_report, collaterals, current_time);
+
+    // Step 3: Verify QE report data
+    verify_qe_report_data_and_values(
+        qe_report,
+        ecdsa_attestation_pubkey,
+        qe_auth_data,
+        collaterals
+    );
+
+    // Step 4: Process certificate chain and get SGX extensions
+    let sgx_extensions = process_cert_chain(
+        qe_cert_data,
+        qe_report,
+        qe_report_signature,
+        collaterals
+    );
+
+    // Step 5: Verify attestation signature
+    verify_attestation_signature(
+        quote_header,
+        quote_body,
+        ecdsa_attestation_signature,
+        ecdsa_attestation_pubkey
+    );
+
+    // Step 6: Validate TCB info
+    let tcb_info = validate_appropriate_tcb_info(quote_header, collaterals, current_time);
+
+    (qe_tcb_status, sgx_extensions, tcb_info)
+}
+
+#[inline(never)]
+fn verify_certificates_and_crls(collaterals: &IntelCollateral) {
     let signing_cert = collaterals.get_sgx_tcb_signing();
     let intel_sgx_root_cert = collaterals.get_sgx_intel_root_ca();
-
-    // verify that signing_verifying_key is not revoked and signed by the root cert
     let intel_crls = IntelSgxCrls::from_collaterals(collaterals);
 
-    // ZL: If collaterals are checked by the caller, then these can be removed
-    // check that CRLs are valid
+    // Check CRLs
     match &intel_crls.sgx_root_ca_crl {
         Some(crl) => {
             assert!(verify_crl(crl, &intel_sgx_root_cert));
@@ -73,113 +98,174 @@ fn common_verify_and_fetch_tcb(
         }
     }
 
+    // Verify signing cert
     let signing_cert_revoked = intel_crls.is_cert_revoked(&signing_cert);
     assert!(!signing_cert_revoked, "TCB Signing Cert revoked");
     assert!(
         verify_certificate(&signing_cert, &intel_sgx_root_cert),
         "TCB Signing Cert is not signed by Intel SGX Root CA"
     );
+}
 
-    // validate QEIdentity
+#[inline(never)]
+fn verify_qe_identity(
+    qe_report: &EnclaveReport,
+    collaterals: &IntelCollateral,
+    current_time: u64,
+) -> TcbStatus {
+    let signing_cert = collaterals.get_sgx_tcb_signing();
     let qeidentityv2 = collaterals.get_qeidentityv2();
+
     assert!(validate_enclave_identityv2(
         &qeidentityv2,
         &signing_cert,
         current_time
     ));
 
-    // verify QEReport then get TCB Status
-    assert!(
-        verify_qe_report_data(
-            &qe_report.report_data,
-            &ecdsa_attestation_pubkey,
-            qe_auth_data
-        ),
-        "QE Report Data is incorrect"
-    );
-    assert!(
-        validate_qe_report(qe_report, &qeidentityv2),
-        "QE Report values do not match with the provided QEIdentity"
-    );
     let qe_tcb_status = get_qe_tcbstatus(qe_report, &qeidentityv2);
     assert!(
         qe_tcb_status != TcbStatus::TcbRevoked,
         "QEIdentity TCB Revoked"
     );
 
-    // get the certchain embedded in the ecda quote signature data
-    // this can be one of 5 types
-    // we only handle type 5 for now...
-    // TODO: Add support for all other types
+    qe_tcb_status
+}
+
+#[inline(never)]
+fn verify_qe_report_data_and_values(
+    qe_report: &EnclaveReport,
+    ecdsa_attestation_pubkey: &[u8],
+    qe_auth_data: &[u8],
+    collaterals: &IntelCollateral,
+) {
+    let qeidentityv2 = collaterals.get_qeidentityv2();
+
+    assert!(
+        verify_qe_report_data(
+            &qe_report.report_data,
+            ecdsa_attestation_pubkey,
+            qe_auth_data
+        ),
+        "QE Report Data is incorrect"
+    );
+
+    assert!(
+        validate_qe_report(qe_report, &qeidentityv2),
+        "QE Report values do not match with the provided QEIdentity"
+    );
+}
+
+#[inline(never)]
+fn process_cert_chain(
+    qe_cert_data: &CertData,
+    qe_report: &EnclaveReport,
+    qe_report_signature: &[u8],
+    collaterals: &IntelCollateral,
+) -> SgxExtensions {
+    let intel_sgx_root_cert = collaterals.get_sgx_intel_root_ca();
+    let intel_crls = IntelSgxCrls::from_collaterals(collaterals);
+
+    // Verify cert type
     assert_eq!(qe_cert_data.cert_data_type, 5, "QE Cert Type must be 5");
+
+    // Parse certificates
     let certchain_pems = parse_pem(&qe_cert_data.cert_data).unwrap();
     let certchain = parse_certchain(&certchain_pems);
-    // checks that the certificates used in the certchain are not revoked
+
+    // Check revocation status
     for cert in certchain.iter() {
         assert!(!intel_crls.is_cert_revoked(cert));
     }
 
-    // get the pck certificate, and check whether issuer common name is valid
+    // Verify PCK certificate
     let pck_cert = &certchain[0];
     let pck_cert_issuer = &certchain[1];
+
     assert!(
         check_pck_issuer_and_crl(pck_cert, pck_cert_issuer, &intel_crls),
         "Invalid PCK Issuer or CRL"
     );
 
-    // verify that the cert chain signatures are valid
+    // Verify cert chain signatures
     assert!(
         verify_certchain_signature(&certchain, &intel_sgx_root_cert),
         "Invalid PCK Chain"
     );
 
-    // verify the signature for qe report data
-    let qe_report_bytes = qe_report.to_bytes();
+    // Verify QE report signature
+    verify_qe_report_signature(qe_report, qe_report_signature, pck_cert);
 
+    // Extract SGX extensions
+    extract_sgx_extension(pck_cert)
+}
+
+#[inline(never)]
+fn verify_qe_report_signature(
+    qe_report: &EnclaveReport,
+    qe_report_signature: &[u8],
+    pck_cert: &X509Certificate,
+) {
+    let qe_report_bytes = qe_report.to_bytes();
     let qe_report_public_key = pck_cert.public_key().subject_public_key.as_ref();
+
     assert!(
         verify_p256_signature_bytes(&qe_report_bytes, qe_report_signature, qe_report_public_key),
         "Invalid qe signature"
     );
+}
 
-    // get the SGX extension
-    let sgx_extensions = extract_sgx_extension(&pck_cert);
-
-    // verify the signature for attestation body
+#[inline(never)]
+fn verify_attestation_signature(
+    quote_header: &QuoteHeader,
+    quote_body: &QuoteBody,
+    ecdsa_attestation_signature: &[u8],
+    ecdsa_attestation_pubkey: &[u8],
+) {
+    // Create data buffer
     let mut data = Vec::new();
-    data.extend_from_slice(&quote_header.to_bytes());
+    let header_bytes = quote_header.to_bytes();
     match quote_body {
         QuoteBody::SGXQuoteBody(body) => data.extend_from_slice(&body.to_bytes()),
         QuoteBody::TD10QuoteBody(body) => data.extend_from_slice(&body.to_bytes()),
     };
 
-    // prefix pub key
-    let mut prefixed_pub_key = [4; 65];
+    // Prepare signature verification data
+    data.extend_from_slice(&header_bytes);
+
+    // Prepare public key
+    let mut prefixed_pub_key = [4u8; 65];
     prefixed_pub_key[1..65].copy_from_slice(ecdsa_attestation_pubkey);
+
+    // Verify signature
     assert!(
         verify_p256_signature_bytes(&data, ecdsa_attestation_signature, &prefixed_pub_key),
         "Invalid attestation signature"
     );
+}
 
-    // validate tcbinfo v2 or v3, depending on the quote version
-    let tcb_info: TcbInfo;
+#[inline(never)]
+fn validate_appropriate_tcb_info(
+    quote_header: &QuoteHeader,
+    collaterals: &IntelCollateral,
+    current_time: u64,
+) -> TcbInfo {
+    let signing_cert = collaterals.get_sgx_tcb_signing();
+
     if quote_header.version >= 4 {
         let tcb_info_v3 = collaterals.get_tcbinfov3();
         assert!(
             validate_tcbinfov3(&tcb_info_v3, &signing_cert, current_time),
             "Invalid TCBInfoV3"
         );
-        tcb_info = TcbInfo::V3(tcb_info_v3);
+        TcbInfo::V3(tcb_info_v3)
     } else {
         let tcb_info_v2 = collaterals.get_tcbinfov2();
         assert!(
             validate_tcbinfov2(&tcb_info_v2, &signing_cert, current_time),
             "Invalid TCBInfoV2"
         );
-        tcb_info = TcbInfo::V2(tcb_info_v2);
+        TcbInfo::V2(tcb_info_v2)
     }
-
-    (qe_tcb_status, sgx_extensions, tcb_info)
 }
 
 fn check_pck_issuer_and_crl(
