@@ -4,7 +4,6 @@ pub mod version_4;
 use x509_parser::certificate::X509Certificate;
 
 use crate::constants::{ECDSA_256_WITH_P256_CURVE, INTEL_QE_VENDOR_ID};
-use crate::types::enclave_identity::EnclaveIdentityV2;
 use crate::utils::hash::sha256sum;
 
 use crate::types::cert::{IntelSgxCrls, SgxExtensions};
@@ -15,14 +14,12 @@ use crate::types::quotes::{
 };
 use crate::types::tcbinfo::TcbInfo;
 use crate::types::TcbStatus;
-use crate::utils::enclave_identity::get_qe_tcbstatus;
 
 use crate::utils::cert::{
     extract_sgx_extension, get_x509_issuer_cn, get_x509_subject_cn, parse_certchain, parse_pem,
     verify_certchain_signature, verify_certificate, verify_crl,
 };
 use crate::utils::crypto::verify_p256_signature_bytes;
-use crate::utils::enclave_identity::validate_enclave_identityv2;
 use crate::utils::tcbinfo::{validate_tcbinfov2, validate_tcbinfov3};
 
 fn check_quote_header(quote_header: &QuoteHeader, quote_version: u16) -> bool {

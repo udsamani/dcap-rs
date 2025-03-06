@@ -1,6 +1,5 @@
 use x509_parser::{certificate::X509Certificate, revocation_list::CertificateRevocationList};
 
-use super::enclave_identity::EnclaveIdentityV2;
 use super::tcbinfo::{TcbInfoV2, TcbInfoV3};
 
 use crate::utils::cert::{parse_crl_der, parse_x509_der, parse_x509_der_multi, pem_to_der};
@@ -33,7 +32,7 @@ impl IntelCollateral {
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        // serialization scheme is simple: the bytestream is made of 2 parts 
+        // serialization scheme is simple: the bytestream is made of 2 parts
         // the first contains a u32 length for each of the members
         // the second contains the actual data
         // [lengths of each of the member][data segment]
@@ -333,7 +332,7 @@ impl IntelCollateral {
                 let crl = parse_crl_der(crl_der);
                 Some(crl)
             },
-            None => None, 
+            None => None,
         }
     }
 

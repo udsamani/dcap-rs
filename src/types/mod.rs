@@ -1,6 +1,7 @@
 use self::quotes::body::*;
 use crate::constants::{ENCLAVE_REPORT_LEN, SGX_TEE_TYPE, TD10_REPORT_LEN, TDX_TEE_TYPE};
 use alloy_sol_types::SolValue;
+use enclave_identity::QeTcbStatus;
 use serde::{Deserialize, Serialize};
 
 pub mod cert;
@@ -8,6 +9,10 @@ pub mod collaterals;
 pub mod enclave_identity;
 pub mod quotes;
 pub mod tcbinfo;
+pub mod collateral;
+pub mod quote;
+pub mod report;
+pub mod sgx_x509;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TcbStatus {
@@ -35,6 +40,10 @@ impl TcbStatus {
         };
     }
 }
+pub type UInt16LE = zerocopy::little_endian::U16;
+pub type UInt32LE = zerocopy::little_endian::U32;
+pub type UInt64LE = zerocopy::little_endian::U64;
+
 
 // serialization:
 // [quote_vesion][tee_type][tcb_status][fmspc][quote_body_raw_bytes]
