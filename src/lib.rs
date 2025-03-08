@@ -13,7 +13,7 @@ mod tests {
     use crate::utils::cert::{hash_crl_keccak256, hash_x509_keccak256, parse_crl_der, parse_pem, parse_x509_der, verify_crl};
     use crate::utils::tcbinfo::{validate_tcbinfov2, validate_tcbinfov3};
     use crate::utils::quotes::{
-        version_3::verify_quote_dcapv3, 
+        version_3::verify_quote_dcapv3,
         version_4::verify_quote_dcapv4
     };
 

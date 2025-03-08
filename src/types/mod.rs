@@ -1,7 +1,5 @@
 use self::quotes::body::*;
 use crate::constants::{ENCLAVE_REPORT_LEN, SGX_TEE_TYPE, TD10_REPORT_LEN, TDX_TEE_TYPE};
-use alloy_sol_types::SolValue;
-use enclave_identity::QeTcbStatus;
 use serde::{Deserialize, Serialize};
 
 pub mod cert;

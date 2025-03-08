@@ -5,7 +5,7 @@ const SGX_CPUSVN_SIZE: usize = 16;
 const SGX_HASH_SIZE: usize = 32;
 
 
-/// SgxReportBody is the body of the SGX report.
+/// EnclaveReportBody is the body of the SGX report.
 ///
 #[derive(Debug, zerocopy::FromBytes, zerocopy::FromZeroes, zerocopy::AsBytes)]
 #[repr(C)]
@@ -77,6 +77,16 @@ pub struct EnclaveReportBody {
     // Total 384 bytes
 }
 
+impl TryFrom<[u8; std::mem::size_of::<EnclaveReportBody>()]> for EnclaveReportBody {
+    type Error = anyhow::Error;
+
+    fn try_from(value: [u8; std::mem::size_of::<EnclaveReportBody>()]) -> Result<Self, Self::Error> {
+        let report = <Self as zerocopy::FromBytes>::read_from(&value)
+            .expect("failed to read enclave report body");
+
+        Ok(report)
+    }
+}
 
 /// TdxReportBody is the body of the TDX Quote
 #[derive(Debug, zerocopy::FromBytes, zerocopy::FromZeroes, zerocopy::AsBytes)]
@@ -145,4 +155,15 @@ pub struct TdxReportBody {
     // (520) User Report Data.
     // sgx_report_data_t report_data;
     pub user_report_data: [u8; 64],
+}
+
+impl TryFrom<[u8; std::mem::size_of::<TdxReportBody>()]> for TdxReportBody {
+    type Error = anyhow::Error;
+
+    fn try_from(value: [u8; std::mem::size_of::<TdxReportBody>()]) -> Result<Self, Self::Error> {
+        let report = <Self as zerocopy::FromBytes>::read_from(&value)
+            .expect("failed to read tdx report body");
+
+        Ok(report)
+    }
 }
