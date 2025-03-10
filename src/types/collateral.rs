@@ -2,6 +2,8 @@ use x509_cert::{crl::CertificateList, Certificate};
 use crate::utils::{cert_chain, crl};
 use serde::{Serialize, Deserialize};
 
+use super::{enclave_identity::QuotingEnclaveIdentityAndSignature, tcb_info::TcbInfoAndSignature};
+
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Collateral {
@@ -42,11 +44,11 @@ pub struct Collateral {
 
     /// TCB Info Structure
     /// Contains security version information and TCB levels.
-    pub tcb_info: Option<Vec<u8>>,
+    pub tcb_info: TcbInfoAndSignature,
 
     /// QE Identity Structure
     /// Contains Quoting Enclave identity information.
-    pub qe_identity: Option<Vec<u8>>,
+    pub qe_identity: QuotingEnclaveIdentityAndSignature,
 }
 
 #[cfg(test)]

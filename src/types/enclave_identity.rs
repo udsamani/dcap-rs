@@ -28,10 +28,9 @@ impl QuotingEnclaveIdentityAndSignature {
     /// Validate the enclave identity and return the enclave identity if it is valid
     /// It checks the signature, the version, and the timestamp.
     /// The enclave identities should have their version set to 2.
-    pub fn validate_enclave_identity(
+    pub fn validate_as_enclave_identity(
         &self,
         public_key: &VerifyingKey,
-        timestamp: chrono::DateTime<Utc>,
     ) -> anyhow::Result<EnclaveIdentity> {
 
         public_key.verify(
@@ -44,10 +43,6 @@ impl QuotingEnclaveIdentityAndSignature {
 
         if enclave_identity.version != ENCLAVE_IDENTITY_V2 {
             return Err(anyhow::anyhow!("unsupported enclave identity version, only v2 is supported"));
-        }
-
-        if timestamp < enclave_identity.issue_date || timestamp > enclave_identity.next_update {
-            return Err(anyhow::anyhow!("enclave identity is not valid at this time"));
         }
 
         Ok(enclave_identity)

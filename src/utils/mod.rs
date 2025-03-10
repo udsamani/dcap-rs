@@ -1,3 +1,7 @@
+use std::time::SystemTime;
+
+use x509_cert::{certificate::CertificateInner, crl::CertificateList};
+
 pub mod hash;
 pub mod cert;
 pub mod crypto;
@@ -77,6 +81,50 @@ pub mod u32_hex {
     }
     pub fn serialize<S: Serializer>(value: &UInt32LE, serializer: S) -> Result<S::Ok, S::Error> {
         hex::serialize(value.as_bytes(), serializer)
+    }
+}
+
+pub trait Expireable {
+    fn valid_at(&self, timestamp: SystemTime) -> bool;
+}
+
+impl Expireable for CertificateList {
+    /// Validate CRL creation/expiration
+    fn valid_at(&self, timestamp: SystemTime) -> bool {
+        if let Some(na) = self.tbs_cert_list.next_update.map(|t| t.to_system_time()) {
+            if na <= timestamp {
+                return false;
+            }
+        }
+
+        // return false if the crl is for the future
+        let nb = self.tbs_cert_list.this_update.to_system_time();
+        if nb >= timestamp {
+            return false;
+        }
+
+        true
+    }
+}
+
+impl Expireable for CertificateInner {
+    /// Validate a single certificate not_before/not_after
+    fn valid_at(&self, timestamp: SystemTime) -> bool {
+        let nb = self.tbs_certificate.validity.not_before.to_system_time();
+        let na = self.tbs_certificate.validity.not_after.to_system_time();
+        !(timestamp <= nb || na <= timestamp)
+    }
+}
+
+impl Expireable for &[CertificateInner] {
+    fn valid_at(&self, timestamp: SystemTime) -> bool {
+        self.iter().all(|cert| cert.valid_at(timestamp))
+    }
+}
+
+impl Expireable for Vec<CertificateInner> {
+    fn valid_at(&self, timestamp: SystemTime) -> bool {
+        self.as_slice().valid_at(timestamp)
     }
 }
 

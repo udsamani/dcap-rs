@@ -3,7 +3,7 @@ use p256::ecdsa::Signature;
 use x509_cert::certificate::CertificateInner;
 use zerocopy::little_endian;
 
-use crate::utils;
+use crate::{constants::{SGX_TEE_TYPE, TDX_TEE_TYPE}, utils};
 
 use super::{report::{EnclaveReportBody, TdxReportBody}, sgx_x509::SgxPckExtension};
 
@@ -20,7 +20,7 @@ pub struct Quote<'a> {
     pub body: QuoteBody,
 
     /// Signature of the quote body.
-    pub support: QuoteSupport<'a>,
+    pub support: QuoteSupportData<'a>,
 }
 
 impl<'a> Quote<'a> {
@@ -35,26 +35,27 @@ impl<'a> Quote<'a> {
         let quote_header = QuoteHeader::try_from(quote_header)?;
 
         // Read the quote body and signature
-        if quote_header.version.get() == QUOTE_V3 {
+        if quote_header.tee_type == SGX_TEE_TYPE {
 
             let quote_body = utils::read_array::<{std::mem::size_of::<EnclaveReportBody>()}>(bytes);
             let quote_body = EnclaveReportBody::try_from(quote_body)?;
-            let quote_signature = SgxQuoteSupportData::read(bytes)?;
+            let quote_signature = QuoteSupportData::read(bytes)?;
             return Ok(Quote {
                 header: quote_header,
                 body: QuoteBody::SgxQuoteBody(quote_body),
-                support: QuoteSupport::SgxQuoteSupportData(quote_signature),
+                support: quote_signature,
             });
 
-        } else if quote_header.version.get() == QUOTE_V4 {
+        } else if quote_header.tee_type == TDX_TEE_TYPE {
 
             let quote_body = utils::read_array::<{std::mem::size_of::<TdxReportBody>()}>(bytes);
             let quote_body = TdxReportBody::try_from(quote_body)?;
-            let quote_signature = TdxQuoteSupportData::read(bytes)?;
+            let quote_signature = QuoteSupportData::read(bytes)?;
+
             return Ok(Quote {
                 header: quote_header,
                 body: QuoteBody::TdxQuoteBody(quote_body),
-                support: QuoteSupport::TdxQuoteSupportData(quote_signature),
+                support: quote_signature,
             });
 
         } else {
@@ -134,19 +135,11 @@ impl TryFrom<[u8; std::mem::size_of::<QuoteHeader>()]> for QuoteHeader {
 
 
 /// Body of the Quote data structure.
+#[derive(Debug)]
 pub enum QuoteBody {
     SgxQuoteBody(EnclaveReportBody),
     TdxQuoteBody(TdxReportBody),
 }
-
-/// Quote support data for SGX and TDX Quotes.
-/// Helps to validate the quote body.
-#[derive(Debug)]
-pub enum QuoteSupport<'a> {
-    SgxQuoteSupportData(SgxQuoteSupportData<'a>),
-    TdxQuoteSupportData(TdxQuoteSupportData),
-}
-
 
 /// Support data for SGX Quotes
 ///
@@ -155,7 +148,7 @@ pub enum QuoteSupport<'a> {
 /// This can be used to validate that the quoting enclave itself is valid, and then that
 /// the quoting enclave has signed the ISV enclave report.
 #[derive(Debug)]
-pub struct SgxQuoteSupportData<'a> {
+pub struct QuoteSupportData<'a> {
     /// Signature of the report header + report by the attestation key.
     pub isv_signature: Signature,
 
@@ -179,7 +172,7 @@ pub struct SgxQuoteSupportData<'a> {
 }
 
 
-impl <'a> SgxQuoteSupportData<'a> {
+impl <'a> QuoteSupportData<'a> {
     pub fn read(bytes: &mut &'a [u8]) -> Result<Self, anyhow::Error> {
         let signature_header: SgxEcdsaSignatureHeader = utils::read_from_bytes(bytes)
             .ok_or_else(|| anyhow!("incorrect buffer size"))?;
@@ -225,7 +218,7 @@ impl <'a> SgxQuoteSupportData<'a> {
         let pck_extension = SgxPckExtension::from_der(pck_extension.extn_value.as_bytes())
             .context("PCK Extension")?;
 
-        Ok(SgxQuoteSupportData {
+        Ok(QuoteSupportData {
             isv_signature: Signature::from_slice(&signature_header.isv_signature).context("ISV Signature")?,
             attestation_pub_key: signature_header.attestation_pub_key,
             qe_report_body: signature_header.qe_report_body,
