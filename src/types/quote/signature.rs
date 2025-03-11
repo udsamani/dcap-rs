@@ -68,6 +68,15 @@ impl QuoteSignatureData {
         let qe_report_signature =
             Signature::from_slice(&qe_report_signature).context("QE Report Signature")?;
 
+        let auth_data_size = utils::read_from_bytes::<little_endian::U16>(bytes)
+            .ok_or_else(|| anyhow!("Failed to read auth data size"))?
+            .get();
+
+        if bytes.len() < auth_data_size as usize {
+            return Err(anyhow!("buffer underflow"));
+        }
+
+        let auth_data = utils::read_bytes(bytes, auth_data_size as usize);
         let cert_data = QuoteCertData::read(bytes)?;
 
         let pck_cert_chain_data = cert_data.as_pck_cert_chain_data()?;
@@ -78,7 +87,7 @@ impl QuoteSignatureData {
             attestation_pub_key: signature_header.attestation_pub_key,
             qe_report_body,
             qe_report_signature,
-            auth_data: pck_cert_chain_data.qe_auth_data.to_vec(),
+            auth_data: auth_data.to_vec(),
             pck_cert_chain: pck_cert_chain_data.pck_cert_chain,
             pck_extension: pck_cert_chain_data.pck_extension,
         })

@@ -279,4 +279,11 @@ mod tests {
         let quote = Quote::read(&mut bytes.as_slice()).unwrap();
         println!("{:?}", quote);
     }
+
+    #[test]
+    fn parse_sgx_quote() {
+        let bytes = include_bytes!("../data/quote_sgx.bin");
+        let quote = Quote::read(&mut bytes.as_slice()).unwrap();
+        println!("{:?}", quote);
+    }
 }

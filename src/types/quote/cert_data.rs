@@ -120,20 +120,7 @@ impl<'a> QuoteCertData<'a> {
             ));
         }
 
-        let mut data = self.cert_data;
-
-        let auth_data_size = utils::read_from_bytes::<little_endian::U16>(&mut data)
-            .ok_or_else(|| anyhow!("Failed to read auth data size"))?;
-
-        if data.len() < auth_data_size.get() as usize {
-            return Err(anyhow!("buffer underflow"));
-        }
-
-        let qe_auth_data = utils::read_bytes(&mut data, auth_data_size.get() as usize);
-
-        let cert_data = utils::read_bytes(&mut data, self.cert_data_size.get() as usize);
-        let cert_data = cert_data.strip_suffix(&[0]).unwrap_or(cert_data);
-
+        let cert_data = self.cert_data.strip_suffix(&[0]).unwrap_or(self.cert_data);
         let pck_cert_chain = CertificateInner::load_pem_chain(cert_data)
             .context("Failed to parse PCK certificate chain")?;
 
@@ -151,7 +138,6 @@ impl<'a> QuoteCertData<'a> {
             .ok_or_else(|| anyhow!("PCK Certificate does not contain a SGX Extension"))?;
 
         Ok(PckCertChainData {
-            qe_auth_data,
             pck_cert_chain: pck_cert_chain.clone(),
             pck_extension: SgxPckExtension::from_der(pck_extension.extn_value.as_bytes())
                 .context("PCK Extension")?,
@@ -171,9 +157,7 @@ pub struct QuotingEnclaveReportCertData<'a> {
     pub pck_extension: SgxPckExtension,
 }
 
-pub struct PckCertChainData<'a> {
-    pub qe_auth_data: &'a [u8],
-
+pub struct PckCertChainData {
     pub pck_cert_chain: Vec<CertificateInner>,
 
     pub pck_extension: SgxPckExtension,

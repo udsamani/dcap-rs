@@ -103,8 +103,8 @@ pub struct SgxPckExtension {
     /// FMSPC - Family-Model-Stepping-Platform-CustomSKU identifier
     pub fmspc: [u8; FMSPC_LEN],
     _sgx_type: SgxType,
-    pub platform_instance_id: [u8; PLATFORM_INSTANCE_ID_LEN],
-    _configuration: Configuration,
+    _platform_instance_id: Option<[u8; PLATFORM_INSTANCE_ID_LEN]>,
+    _configuration: Option<Configuration>,
 }
 
 impl SgxPckExtension {
@@ -118,8 +118,8 @@ impl SgxPckExtension {
         let mut pceid = None;
         let mut fmspc = None;
         let mut sgx_type = None;
-        let mut platform_instance_id = None;
-        let mut configuration = None;
+        let mut platform_instance_id: Option<[u8; PLATFORM_INSTANCE_ID_LEN]> = None;
+        let mut configuration: Option<Configuration> = None;
 
         let extensions = asn1::parse_single::<SequenceOf<SgxExtension>>(der)
             .map_err(|_| anyhow!("malformed PCK certificate"))?;
@@ -146,8 +146,8 @@ impl SgxPckExtension {
             pceid: pceid.unwrap(),
             fmspc: fmspc.unwrap(),
             _sgx_type: sgx_type.unwrap(),
-            platform_instance_id: platform_instance_id.unwrap(),
-            _configuration: configuration.unwrap(),
+            _platform_instance_id: platform_instance_id,
+            _configuration: configuration,
         })
     }
 }
@@ -345,7 +345,10 @@ fn parse_extensions<'a>(
     }
 
     for (oid, attr) in attributes {
-        if attr.is_none() {
+        // It seems that the platform instance id and configuration are optional in the
+        // PCK certificate. TODO(udit): Confirm this. For time, being this is hardcoded,
+        // to avoid panics, we ignore these two extensions.
+        if attr.is_none() && oid != PLATFORM_INSTANCE_OID && oid != CONFIGURATION_OID {
             return Err(anyhow!("missing extension in PCK certificate: {:?}", oid));
         }
     }
