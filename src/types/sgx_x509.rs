@@ -71,7 +71,7 @@ const PLATFORM_INSTANCE_OID: ObjectIdentifier = oid!(1, 2, 840, 113741, 1, 13, 1
 
 /// Configuration OID
 /// Contains platform configuration information
-// const CONFIGURATION_OID: ObjectIdentifier = oid!(1, 2, 840, 113741, 1, 13, 1, 7);
+const CONFIGURATION_OID: ObjectIdentifier = oid!(1, 2, 840, 113741, 1, 13, 1, 7);
 const CONFIGURATION_DYNAMIC_PLATFORM_OID: ObjectIdentifier =
     oid!(1, 2, 840, 113741, 1, 13, 1, 7, 1);
 const CONFIGURATION_CACHED_KEYS_OID: ObjectIdentifier = oid!(1, 2, 840, 113741, 1, 13, 1, 7, 2);
@@ -90,7 +90,7 @@ const COMPSVN_LEN: usize = 16;
 /// This structure stores all the SGX-specific information extracted from
 /// a PCK certificate's extensions, including platform identity, TCB levels,
 /// and configuration information.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SgxPckExtension {
     pub ppid: [u8; PPID_LEN],
 
@@ -104,10 +104,10 @@ pub struct SgxPckExtension {
     pub fmspc: [u8; FMSPC_LEN],
     _sgx_type: SgxType,
     pub platform_instance_id: [u8; PLATFORM_INSTANCE_ID_LEN],
+    _configuration: Configuration,
 }
 
 impl SgxPckExtension {
-
     pub fn is_pck_ext(oid: String) -> bool {
         oid == SGX_EXTENSIONS_OID
     }
@@ -119,6 +119,7 @@ impl SgxPckExtension {
         let mut fmspc = None;
         let mut sgx_type = None;
         let mut platform_instance_id = None;
+        let mut configuration = None;
 
         let extensions = asn1::parse_single::<SequenceOf<SgxExtension>>(der)
             .map_err(|_| anyhow!("malformed PCK certificate"))?;
@@ -135,6 +136,7 @@ impl SgxPckExtension {
                 (FMSPC_OID, &mut fmspc),
                 (SGX_TYPE_OID, &mut sgx_type),
                 (PLATFORM_INSTANCE_OID, &mut platform_instance_id),
+                (CONFIGURATION_OID, &mut configuration),
             ]),
         )?;
 
@@ -145,9 +147,9 @@ impl SgxPckExtension {
             fmspc: fmspc.unwrap(),
             _sgx_type: sgx_type.unwrap(),
             platform_instance_id: platform_instance_id.unwrap(),
+            _configuration: configuration.unwrap(),
         })
     }
-
 }
 
 #[derive(asn1::Asn1Read, Debug)]
@@ -182,7 +184,8 @@ impl<'a> TryFrom<ExtensionValue<'a>> for u8 {
 
     fn try_from(value: ExtensionValue<'a>) -> Result<Self, Self::Error> {
         if let ExtensionValue::Integer(i) = value {
-            i.try_into().map_err(|_| anyhow!("malformed extension value in PCK certificate"))
+            i.try_into()
+                .map_err(|_| anyhow!("malformed extension value in PCK certificate"))
         } else {
             Err(anyhow!("expected integer value"))
         }
@@ -194,7 +197,8 @@ impl<'a> TryFrom<ExtensionValue<'a>> for u16 {
 
     fn try_from(value: ExtensionValue<'a>) -> Result<Self, Self::Error> {
         if let ExtensionValue::Integer(i) = value {
-            i.try_into().map_err(|_| anyhow!("malformed extension value in PCK certificate"))
+            i.try_into()
+                .map_err(|_| anyhow!("malformed extension value in PCK certificate"))
         } else {
             Err(anyhow!("expected integer value"))
         }
@@ -206,7 +210,8 @@ impl<'a, const LEN: usize> TryFrom<ExtensionValue<'a>> for [u8; LEN] {
 
     fn try_from(value: ExtensionValue<'a>) -> Result<Self, Self::Error> {
         if let ExtensionValue::OctetString(s) = value {
-            s.try_into().map_err(|_| anyhow!("malformed extension value in PCK certificate"))
+            s.try_into()
+                .map_err(|_| anyhow!("malformed extension value in PCK certificate"))
         } else {
             Err(anyhow!("expected octet string value"))
         }
@@ -225,14 +230,12 @@ impl<'a> TryFrom<ExtensionValue<'a>> for bool {
     }
 }
 
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Tcb {
     pub compsvn: [u8; COMPSVN_LEN],
     pub pcesvn: u16,
     pub cpusvn: [u8; CPUSVN_LEN],
 }
-
 
 impl<'a> TryFrom<ExtensionValue<'a>> for Tcb {
     type Error = Error;
@@ -254,25 +257,8 @@ impl<'a> TryFrom<SequenceOf<'a, SgxExtension<'a>>> for Tcb {
         let mut pcesvn = None;
         let mut cpusvn = None;
 
-
-        let [
-            compsvn01,
-            compsvn02,
-            compsvn03,
-            compsvn04,
-            compsvn05,
-            compsvn06,
-            compsvn07,
-            compsvn08,
-            compsvn09,
-            compsvn10,
-            compsvn11,
-            compsvn12,
-            compsvn13,
-            compsvn14,
-            compsvn15,
-            compsvn16,
-        ] = &mut compsvn;
+        let [compsvn01, compsvn02, compsvn03, compsvn04, compsvn05, compsvn06, compsvn07, compsvn08, compsvn09, compsvn10, compsvn11, compsvn12, compsvn13, compsvn14, compsvn15, compsvn16] =
+            &mut compsvn;
 
         parse_extensions(
             value,
@@ -337,13 +323,10 @@ where
     }
 }
 
-
-
 fn parse_extensions<'a>(
     extensions: asn1::SequenceOf<'a, SgxExtension<'a>>,
     mut attributes: HashMap<ObjectIdentifier, &mut dyn OptionOfTryFromExtensionValue>,
 ) -> Result<()> {
-
     for extension in extensions {
         let SgxExtension {
             sgx_extension_id,
@@ -351,9 +334,13 @@ fn parse_extensions<'a>(
         } = extension;
 
         if let Some(attr) = attributes.get_mut(&sgx_extension_id) {
-            attr.parse_and_save(value).with_context(|| sgx_extension_id.to_string())?;
+            attr.parse_and_save(value)
+                .with_context(|| sgx_extension_id.to_string())?;
         } else {
-            return Err(anyhow!("unknown extension in PCK certificate: {:?}", sgx_extension_id));
+            return Err(anyhow!(
+                "unknown extension in PCK certificate: {:?}",
+                sgx_extension_id
+            ));
         }
     }
 
@@ -366,10 +353,10 @@ fn parse_extensions<'a>(
     Ok(())
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) enum SgxType {
     Standard,
-    Scalable
+    Scalable,
 }
 
 impl<'a> TryFrom<ExtensionValue<'a>> for SgxType {
@@ -394,7 +381,7 @@ impl TryFrom<asn1::Enumerated> for SgxType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Configuration {
     // TODO should we let clients specify configuration requirements?
     //   e.g. disallow `smt_enabled = true`

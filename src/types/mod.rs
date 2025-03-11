@@ -1,8 +1,8 @@
 use quote::QuoteBody;
 use tcb_info::TcbStatus;
 
-pub mod enclave_identity;
 pub mod collateral;
+pub mod enclave_identity;
 pub mod quote;
 pub mod report;
 pub mod sgx_x509;
