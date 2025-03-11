@@ -280,4 +280,13 @@ fn verify_tcb_status(
 
 #[cfg(test)]
 mod tests {
+
+    use super::*;
+
+    #[test]
+    fn parse_tdx_quote() {
+        let bytes = include_bytes!("../data/quote_tdx.bin");
+        let quote = Quote::read(&mut bytes.as_slice()).unwrap();
+        println!("quote: {:?}", quote);
+    }
 }

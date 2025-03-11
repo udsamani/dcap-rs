@@ -155,6 +155,8 @@ pub struct TdxReportBody {
     // (520) User Report Data.
     // sgx_report_data_t report_data;
     pub user_report_data: [u8; 64],
+
+    // Total 584 bytes
 }
 
 impl TryFrom<[u8; std::mem::size_of::<TdxReportBody>()]> for TdxReportBody {

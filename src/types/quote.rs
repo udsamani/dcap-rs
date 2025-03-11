@@ -15,6 +15,7 @@ pub const SGX_TEE_TYPE: u32 = 0x00000000;
 pub const TDX_TEE_TYPE: u32 = 0x00000081;
 
 /// A DCAP quote, used for verification.
+#[derive(Debug)]
 pub struct Quote<'a> {
     /// Header of the SGX Quote data structure.
     pub header: QuoteHeader,
@@ -199,9 +200,18 @@ pub struct QuoteSupportData<'a> {
 
 impl <'a> QuoteSupportData<'a> {
     pub fn read(bytes: &mut &'a [u8]) -> Result<Self, anyhow::Error> {
+        let signature_len = utils::read_from_bytes::<little_endian::U32>(bytes)
+            .ok_or_else(|| anyhow!("underflow reading signature length"))?
+            .get();
+
+        if bytes.len() < signature_len as usize {
+            return Err(anyhow!("underflow reading signature"));
+        }
+
         let signature_header: SgxEcdsaSignatureHeader = utils::read_from_bytes(bytes)
             .ok_or_else(|| anyhow!("incorrect buffer size"))?;
 
+        println!("auth_data_size: {}", signature_header.auth_data_size.get());
         if bytes.len() < signature_header.auth_data_size.get() as usize {
             return Err(anyhow!("incorrect buffer size"));
         }
