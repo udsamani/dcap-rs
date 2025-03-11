@@ -71,7 +71,7 @@ const PLATFORM_INSTANCE_OID: ObjectIdentifier = oid!(1, 2, 840, 113741, 1, 13, 1
 
 /// Configuration OID
 /// Contains platform configuration information
-const CONFIGURATION_OID: ObjectIdentifier = oid!(1, 2, 840, 113741, 1, 13, 1, 7);
+// const CONFIGURATION_OID: ObjectIdentifier = oid!(1, 2, 840, 113741, 1, 13, 1, 7);
 const CONFIGURATION_DYNAMIC_PLATFORM_OID: ObjectIdentifier =
     oid!(1, 2, 840, 113741, 1, 13, 1, 7, 1);
 const CONFIGURATION_CACHED_KEYS_OID: ObjectIdentifier = oid!(1, 2, 840, 113741, 1, 13, 1, 7, 2);
@@ -102,7 +102,7 @@ pub struct SgxPckExtension {
 
     /// FMSPC - Family-Model-Stepping-Platform-CustomSKU identifier
     pub fmspc: [u8; FMSPC_LEN],
-    pub sgx_type: SgxType,
+    _sgx_type: SgxType,
     pub platform_instance_id: [u8; PLATFORM_INSTANCE_ID_LEN],
 }
 
@@ -143,7 +143,7 @@ impl SgxPckExtension {
             tcb: tcb.unwrap(),
             pceid: pceid.unwrap(),
             fmspc: fmspc.unwrap(),
-            sgx_type: sgx_type.unwrap(),
+            _sgx_type: sgx_type.unwrap(),
             platform_instance_id: platform_instance_id.unwrap(),
         })
     }
@@ -398,9 +398,9 @@ impl TryFrom<asn1::Enumerated> for SgxType {
 pub(crate) struct Configuration {
     // TODO should we let clients specify configuration requirements?
     //   e.g. disallow `smt_enabled = true`
-    dynamic_platform: bool,
-    cached_keys: bool,
-    smt_enabled: bool,
+    _dynamic_platform: bool,
+    _cached_keys: bool,
+    _smt_enabled: bool,
 }
 
 impl<'a> TryFrom<ExtensionValue<'a>> for Configuration {
@@ -436,9 +436,9 @@ impl<'a> TryFrom<SequenceOf<'a, SgxExtension<'a>>> for Configuration {
         )?;
 
         Ok(Self {
-            dynamic_platform: dynamic_platform.unwrap(),
-            cached_keys: cached_keys.unwrap(),
-            smt_enabled: smt_enabled.unwrap(),
+            _dynamic_platform: dynamic_platform.unwrap(),
+            _cached_keys: cached_keys.unwrap(),
+            _smt_enabled: smt_enabled.unwrap(),
         })
     }
 }

@@ -1,11 +1,7 @@
 use quote::QuoteBody;
-use serde::{Deserialize, Serialize};
 use tcb_info::TcbStatus;
 
-pub mod cert;
-pub mod collaterals;
 pub mod enclave_identity;
-pub mod tcbinfo;
 pub mod collateral;
 pub mod quote;
 pub mod report;
@@ -35,7 +31,7 @@ impl VerifiedOutput {
         todo!()
     }
 
-    pub fn from_bytes(slice: &[u8]) -> VerifiedOutput {
+    pub fn from_bytes(_slice: &[u8]) -> VerifiedOutput {
         todo!()
     }
 }

@@ -5,6 +5,8 @@ use p256::ecdsa::VerifyingKey;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 
+use super::sgx_x509::SgxPckExtension;
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TcbInfoAndSignature {
     #[serde(rename = "tcbInfo")]
@@ -189,5 +191,59 @@ impl Tcb {
             ],
             Self::V3(v3) => v3.sgxtcbcomponents.map(|comp| comp.svn),
         }
+    }
+}
+
+
+#[derive(Debug)]
+pub enum TcbStanding {
+    /// The platform is trusted
+    UpToDate,
+
+    /// The platform is on TCB level that is trustable if it is running software
+    /// with appropriate software mitigations. The user should use another mechanism
+    /// to verify that the returned advisory IDs have been mitigated.
+    SWHardeningNeeded { advisory_ids: Vec<String> },
+}
+
+
+impl TcbStanding {
+    /// Determine the status of the TCB level that is trustable for the platform represented
+    /// by `pck_extension`.
+    ///
+    /// Returns an error if the status is definitely not trustable (e.g. [`TcbStatus::Revoked`])
+    /// but may return success if the status should be interpreted by the user (e.g. [`TcbStatus::SWHardeningNeeded`]).
+    pub fn lookup(pck_extension: &SgxPckExtension, tcb_info: &TcbInfo) -> anyhow::Result<Self> {
+
+        let first_matching_level = tcb_info
+            .tcb_levels
+            .iter()
+            .find(|level| TcbStanding::in_tcb_level(level, pck_extension));
+
+        first_matching_level
+            .map(|level| match level.tcb_status {
+                TcbStatus::UpToDate => Ok(TcbStanding::UpToDate),
+                TcbStatus::SWHardeningNeeded => Ok(TcbStanding::SWHardeningNeeded {
+                    advisory_ids: level.advisory_ids.clone()
+                }),
+                _ => Err(anyhow::anyhow!("invalid tcb status {:?}", level.tcb_status)),
+            })
+            .unwrap_or_else(|| {
+                Err(anyhow::anyhow!("unsupported TCB in pck extension"))
+            })
+    }
+
+
+    /// Returns true if all the pck componenets are >= all the tcb level components and
+    /// the pck pcesvn is >= the tcb level pcesvn.
+    fn in_tcb_level(level: &TcbLevel, pck_extension: &SgxPckExtension) -> bool {
+        const SVN_LENGTH: usize = 16;
+        let pck_components: &[u8; SVN_LENGTH] = &pck_extension.tcb.compsvn;
+
+        pck_components
+            .iter()
+            .zip(level.tcb.components())
+            .all(|(&pck, tcb)| pck >= tcb) && pck_extension.tcb.pcesvn >= level.tcb.pcesvn()
+
     }
 }

@@ -136,7 +136,7 @@ impl TrustStore {
                 .try_into()
                 .map_err(|e| anyhow::anyhow!("failed to decode key from certificate: {}", e))?;
 
-            let identity = TrustedIdentity { cert, pk };
+            let identity = TrustedIdentity { cert: cert.clone(), pk };
 
             if chain.peek().is_none() {
                 // If we are at the leaf node of the chain, discard intermediary identities.

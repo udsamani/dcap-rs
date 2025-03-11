@@ -36,6 +36,3 @@ features = [ "std", "p256", "x509" ]
 
 [features]
 default = []
-
-[patch.crates-io]
-proc-macro-error2 = { git = "https://github.com/udsamani/proc-macro-error-2", branch = "master"}
