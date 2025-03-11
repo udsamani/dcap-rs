@@ -50,11 +50,11 @@ impl Quote {
                 utils::read_array::<{ std::mem::size_of::<EnclaveReportBody>() }>(bytes);
             let quote_body = EnclaveReportBody::try_from(quote_body)?;
             let quote_signature = QuoteSignatureData::read(bytes, quote_header.version.get())?;
-            return Ok(Quote {
+            Ok(Quote {
                 header: quote_header,
                 body: QuoteBody::SgxQuoteBody(quote_body),
                 signature: quote_signature,
-            });
+            })
         } else if quote_header.tee_type == TDX_TEE_TYPE {
             let quote_body = utils::read_array::<{ std::mem::size_of::<TdxReportBody>() }>(bytes);
             let quote_body = TdxReportBody::try_from(quote_body)?;

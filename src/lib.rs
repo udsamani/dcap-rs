@@ -42,17 +42,17 @@ pub fn verify_dcap_quote(
     // 4. If TDX type then verify the status of TDX Module status and converge and send
     if quote.header.tee_type == TDX_TEE_TYPE {
         let tdx_module_status =
-            tcb_info.verify_tdx_module(&quote.body.as_tdx_report_body().unwrap())?;
+            tcb_info.verify_tdx_module(quote.body.as_tdx_report_body().unwrap())?;
         tcb_status = TcbInfo::convere_tcb_status_with_tdx_module(tcb_status, tdx_module_status);
     }
 
     Ok(VerifiedOutput {
         quote_version: quote.header.version.get(),
         tee_type: quote.header.tee_type,
-        tcb_status: tcb_status,
+        tcb_status,
         fmspc: quote.signature.pck_extension.fmspc,
         quote_body: quote.body,
-        advisory_ids: advisory_ids,
+        advisory_ids,
     })
 }
 
@@ -220,7 +220,7 @@ fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
 
     pck_pkey
         .verify(
-            &quote.signature.qe_report_body.as_bytes(),
+            quote.signature.qe_report_body.as_bytes(),
             &quote.signature.qe_report_signature,
         )
         .map_err(|e| anyhow!("failed to verify qe report signature. {e}"))?;

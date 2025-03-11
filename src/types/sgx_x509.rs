@@ -167,7 +167,7 @@ enum ExtensionValue<'a> {
     Bool(bool),
 }
 
-impl<'a> std::fmt::Debug for ExtensionValue<'a> {
+impl std::fmt::Debug for ExtensionValue<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ExtensionValue::OctetString(s) => write!(f, "octet string: {:?}", s),
