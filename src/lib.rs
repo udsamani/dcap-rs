@@ -7,7 +7,7 @@ use std::time::SystemTime;
 use anyhow::{anyhow, bail, Context};
 use p256::ecdsa::{signature::Verifier, VerifyingKey};
 use trust_store::TrustStore;
-use types::{collateral::Collateral, quote::Quote, sgx_x509::SgxPckExtension, tcb_info::TcbStanding, tcb_info::TcbInfo, VerifiedOutput};
+use types::{collateral::Collateral, quote::{Quote, TDX_TEE_TYPE}, sgx_x509::SgxPckExtension, tcb_info::{TcbInfo, TcbStanding}, VerifiedOutput};
 use utils::Expireable;
 use zerocopy::AsBytes;
 
@@ -28,19 +28,28 @@ pub fn verify_dcap_quote(
     verify_quote(&collateral, &quote)?;
 
     // 3. Verify the status of Intel SGX TCB described in the chain.
-    let _tcb_standing = verify_tcb_status(&tcb_info, &quote.support.pck_extension)?;
+    let tcb_standing = verify_tcb_status(&tcb_info, &quote.support.pck_extension)?;
+    let (advisory_ids, mut tcb_status) = match tcb_standing {
+        TcbStanding::UpToDate => (None, types::tcb_info::TcbStatus::UpToDate),
+        TcbStanding::SWHardeningNeeded { advisory_ids } => (Some(advisory_ids), types::tcb_info::TcbStatus::SWHardeningNeeded),
+    };
+
+    // 4. If TDX type then verify the status of TDX Module status and converge and send
+    if quote.header.tee_type ==  TDX_TEE_TYPE {
+        let tdx_module_status = tcb_info.verify_tdx_module(&quote.body.as_tdx_report_body().unwrap())?;
+        tcb_status = TcbInfo::convere_tcb_status_with_tdx_module(tcb_status, tdx_module_status);
+    }
 
 
     Ok(VerifiedOutput {
         quote_version: quote.header.version.get(),
         tee_type: quote.header.tee_type,
-        tcb_status: types::tcb_info::TcbStatus::UpToDate,
+        tcb_status: tcb_status,
         fmspc: quote.support.pck_extension.fmspc,
         quote_body: quote.body,
-        advisory_ids: None,
+        advisory_ids: advisory_ids,
     })
 }
-
 
 
 fn verify_integrity(

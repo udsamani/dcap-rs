@@ -11,8 +11,8 @@ use super::{report::{EnclaveReportBody, TdxReportBody}, sgx_x509::SgxPckExtensio
 
 const QUOTE_V3: u16 = 3;
 const QUOTE_V4: u16 = 4;
-const SGX_TEE_TYPE: u32 = 0x00000000;
-const TDX_TEE_TYPE: u32 = 0x00000081;
+pub const SGX_TEE_TYPE: u32 = 0x00000000;
+pub const TDX_TEE_TYPE: u32 = 0x00000081;
 
 /// A DCAP quote, used for verification.
 pub struct Quote<'a> {
@@ -149,6 +149,20 @@ impl QuoteBody {
         match self {
             Self::SgxQuoteBody(body) => body.as_bytes(),
             Self::TdxQuoteBody(body) => body.as_bytes(),
+        }
+    }
+
+    pub fn tee_type(&self) -> u32 {
+        match self {
+            Self::SgxQuoteBody(_) => SGX_TEE_TYPE,
+            Self::TdxQuoteBody(_) => TDX_TEE_TYPE,
+        }
+    }
+
+    pub fn as_tdx_report_body(&self) -> Option<&TdxReportBody> {
+        match self {
+            Self::TdxQuoteBody(body) => Some(body),
+            _ => None,
         }
     }
 }

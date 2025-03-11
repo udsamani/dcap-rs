@@ -5,7 +5,7 @@ use p256::ecdsa::VerifyingKey;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 
-use super::sgx_x509::SgxPckExtension;
+use super::{report::TdxReportBody, sgx_x509::SgxPckExtension};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TcbInfoAndSignature {
@@ -100,6 +100,72 @@ pub struct TcbInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     tdx_module_identities: Option<Vec<TdxModuleIdentity>>,
     tcb_levels: Vec<TcbLevel>,
+}
+
+impl TcbInfo {
+    pub fn verify_tdx_module(&self, quote_body: &TdxReportBody) -> anyhow::Result<TcbStatus> {
+        if self.tdx_module.is_none() {
+            return Err(anyhow::anyhow!("no tdx module found in tcb info"));
+        }
+
+        let (tdx_module_isv_svn, tdx_module_version) = (quote_body.tee_tcb_svn[0], quote_body.tee_tcb_svn[1]);
+        let tdx_module_identity_id = format!("TDX_{:02}", tdx_module_version);
+
+        if self.tdx_module_identities.is_none() {
+            return Err(anyhow::anyhow!("no tdx module identities found in tcb info"));
+        }
+
+        let tdx_module_identity = self.tdx_module_identities
+            .as_ref()
+            .unwrap()
+            .iter()
+            .find(|identity| {
+                identity.id == tdx_module_identity_id
+            }).ok_or(anyhow::anyhow!("tdx module identity not found in tcb info"))?;
+
+        if tdx_module_identity.mrsigner != quote_body.mr_signer_seam {
+            return Err(anyhow::anyhow!("mrsigner mismatch between tdx module identity and tdx quote body"));
+        }
+
+
+        if tdx_module_identity.attributes != quote_body.seam_attributes {
+            return Err(anyhow::anyhow!("attributes mismatch between tdx module identity and tdx quote body"));
+        }
+
+        let tcb_level = tdx_module_identity.tcb_levels
+            .iter()
+            .find(|level| {
+                level.in_tcb_level(tdx_module_isv_svn)
+            }).ok_or(anyhow::anyhow!("no tcb level found for tdx module identity within tdx module levels"))?;
+
+
+        Ok(tcb_level.tcb_status)
+    }
+
+    pub fn convere_tcb_status_with_tdx_module(
+        platform_status: TcbStatus,
+        tdx_module_status: TcbStatus,
+    ) -> TcbStatus {
+
+        // Only adjust if TDX module is OutOfDate
+        if tdx_module_status != TcbStatus::OutOfDate {
+            return tdx_module_status;
+        }
+
+        match platform_status {
+            TcbStatus::UpToDate | TcbStatus::SWHardeningNeeded => {
+                TcbStatus::OutOfDate
+            }
+
+            TcbStatus::ConfigurationNeeded | TcbStatus::ConfigurationAndSWHardeningNeeded => {
+                TcbStatus::OutOfDateConfigurationNeeded
+            }
+
+            _ => platform_status
+        }
+
+    }
+
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -211,9 +277,9 @@ pub struct TdxModule {
     #[serde(with = "hex", rename = "mrsigner")]
     mrsigner: [u8; 48],
     #[serde(with = "hex")]
-    attributes: [u8; 16],
+    attributes: [u8; 8],
     #[serde(with = "hex")]
-    attributes_mask: [u8; 16],
+    attributes_mask: [u8; 8],
 }
 
 #[derive(Deserialize, Serialize, PartialEq, Eq, Clone, Debug)]
@@ -224,9 +290,9 @@ pub struct TdxModuleIdentity {
     #[serde(with = "hex", rename = "mrsigner")]
     mrsigner: [u8; 48],
     #[serde(with = "hex")]
-    attributes: [u8; 16],
+    attributes: [u8; 8],
     #[serde(with = "hex")]
-    attributes_mask: [u8; 16],
+    attributes_mask: [u8; 8],
     tcb_levels: Vec<TdxTcbLevel>,
 }
 
@@ -240,9 +306,15 @@ pub struct TdxTcbLevel {
     advisory_ids: Option<Vec<String>>,
 }
 
+impl TdxTcbLevel {
+    pub fn in_tcb_level(&self, isv_svn: u8) -> bool {
+        self.tcb.isvsvn >= isv_svn
+    }
+}
+
 #[derive(Deserialize, Serialize, PartialEq, Eq, Clone, Debug)]
 pub struct TcbTdx {
-    isvsvn: u16,
+    isvsvn: u8,
 }
 
 
@@ -307,7 +379,7 @@ mod tests {
 
     #[test]
     fn test_parsing_tcb_info_without_tdx_module() {
-        let json = include_str!("../../data/tcbinfov2.json");
+        let json = include_str!("../../data/tcb_info_v2.json");
         let tcb_info_and_signature: TcbInfoAndSignature = serde_json::from_str(json).unwrap();
         let tcb_info = tcb_info_and_signature.get_tcb_info().unwrap();
 
@@ -316,7 +388,7 @@ mod tests {
 
     #[test]
     fn test_parsing_tcb_info_with_tdx_module() {
-        let json = include_str!("../../data/tcbinfov3_00806f050000.json");
+        let json = include_str!("../../data/tcb_info_v3_with_tdx_module.json");
         let tcb_info_and_signature: TcbInfoAndSignature = serde_json::from_str(json).unwrap();
         let tcb_info = tcb_info_and_signature.get_tcb_info().unwrap();
 
