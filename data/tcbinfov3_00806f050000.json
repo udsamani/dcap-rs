@@ -1,7 +1,7 @@
 {
     "tcbInfo": {
-        "id": "TDX",
         "version": 3,
+        "id": "TDX",
         "issueDate": "2024-09-10T06:45:50Z",
         "nextUpdate": "2024-10-10T06:45:50Z",
         "fmspc": "00806f050000",
@@ -9,16 +9,16 @@
         "tcbType": 0,
         "tcbEvaluationDataNumber": 16,
         "tdxModule": {
-            "mrsigner": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-            "attributes": "0000000000000000",
-            "attributesMask": "FFFFFFFFFFFFFFFF"
+            "mrsigner": "2fd4e1c67a2d28fced849ee1bb76e7391b93eb12db7cf3e8cc3b291e07adbce6d034b76d8b9e0a02f15d57471e7552d6",
+            "attributes": "00000000000000000000000000000000",
+            "attributesMask": "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
         },
         "tdxModuleIdentities": [
             {
                 "id": "TDX_03",
-                "mrsigner": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                "attributes": "0000000000000000",
-                "attributesMask": "FFFFFFFFFFFFFFFF",
+                "mrsigner": "2fd4e1c67a2d28fced849ee1bb76e7391b93eb12db7cf3e8cc3b291e07adbce6d034b76d8b9e0a02f15d57471e7552d6",
+                "attributes": "00000000000000000000000000000000",
+                "attributesMask": "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
                 "tcbLevels": [
                     {
                         "tcb": {
@@ -31,9 +31,9 @@
             },
             {
                 "id": "TDX_01",
-                "mrsigner": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                "attributes": "0000000000000000",
-                "attributesMask": "FFFFFFFFFFFFFFFF",
+                "mrsigner": "2fd4e1c67a2d28fced849ee1bb76e7391b93eb12db7cf3e8cc3b291e07adbce6d034b76d8b9e0a02f15d57471e7552d6",
+                "attributes": "00000000000000000000000000000000",
+                "attributesMask": "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
                 "tcbLevels": [
                     {
                         "tcb": {

@@ -50,6 +50,11 @@ impl TcbInfoAndSignature {
         }
         Ok(tcb_info)
     }
+
+    pub fn get_tcb_info(&self) -> anyhow::Result<TcbInfo> {
+        serde_json::from_str(self.tcb_info_raw.get())
+            .map_err(|e| anyhow::anyhow!("tcb info parsing failed: {}", e))
+    }
 }
 
 /// Version of the TcbInfo JSON structure
@@ -79,6 +84,8 @@ impl TryFrom<u16> for TcbInfoVersion {
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TcbInfo {
+    #[serde(skip_serializing_if = "Option::is_none", rename = "id")]
+    id: Option<String>,
     version: TcbInfoVersion,
     _issue_date: chrono::DateTime<Utc>,
     pub next_update: chrono::DateTime<Utc>,
@@ -88,7 +95,11 @@ pub struct TcbInfo {
     pub pce_id: [u8; 2],
     tcb_type: u16,
     _tcb_evaluation_data_number: u16,
-    pub tcb_levels: Vec<TcbLevel>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tdx_module: Option<TdxModule>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tdx_module_identities: Option<Vec<TdxModuleIdentity>>,
+    tcb_levels: Vec<TcbLevel>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -97,8 +108,8 @@ pub struct TcbLevel {
     pub tcb: Tcb,
     pub tcb_date: chrono::DateTime<Utc>,
     pub tcb_status: TcbStatus,
-    #[serde(rename = "advisoryIDs")]
-    pub advisory_ids: Vec<String>,
+    #[serde(rename = "advisoryIDs", skip_serializing_if = "Option::is_none")]
+    pub advisory_ids: Option<Vec<String>>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Deserialize, Serialize)]
@@ -194,6 +205,46 @@ impl Tcb {
     }
 }
 
+#[derive(Deserialize, Serialize, PartialEq, Eq, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct TdxModule {
+    #[serde(with = "hex", rename = "mrsigner")]
+    mrsigner: [u8; 48],
+    #[serde(with = "hex")]
+    attributes: [u8; 16],
+    #[serde(with = "hex")]
+    attributes_mask: [u8; 16],
+}
+
+#[derive(Deserialize, Serialize, PartialEq, Eq, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct TdxModuleIdentity {
+    #[serde(rename = "id")]
+    id: String,
+    #[serde(with = "hex", rename = "mrsigner")]
+    mrsigner: [u8; 48],
+    #[serde(with = "hex")]
+    attributes: [u8; 16],
+    #[serde(with = "hex")]
+    attributes_mask: [u8; 16],
+    tcb_levels: Vec<TdxTcbLevel>,
+}
+
+#[derive(Deserialize, Serialize, PartialEq, Eq, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct TdxTcbLevel {
+    tcb: TcbTdx,
+    tcb_date: chrono::DateTime<Utc>,
+    tcb_status: TcbStatus,
+    #[serde(rename = "advisoryIDs", skip_serializing_if = "Option::is_none")]
+    advisory_ids: Option<Vec<String>>,
+}
+
+#[derive(Deserialize, Serialize, PartialEq, Eq, Clone, Debug)]
+pub struct TcbTdx {
+    isvsvn: u16,
+}
+
 
 #[derive(Debug)]
 pub enum TcbStanding {
@@ -224,7 +275,7 @@ impl TcbStanding {
             .map(|level| match level.tcb_status {
                 TcbStatus::UpToDate => Ok(TcbStanding::UpToDate),
                 TcbStatus::SWHardeningNeeded => Ok(TcbStanding::SWHardeningNeeded {
-                    advisory_ids: level.advisory_ids.clone()
+                    advisory_ids: level.advisory_ids.clone().unwrap_or_default()
                 }),
                 _ => Err(anyhow::anyhow!("invalid tcb status {:?}", level.tcb_status)),
             })
@@ -234,7 +285,7 @@ impl TcbStanding {
     }
 
 
-    /// Returns true if all the pck componenets are >= all the tcb level components and
+    /// Returns true if all the pck componenets are >= all the tcb level components and e
     /// the pck pcesvn is >= the tcb level pcesvn.
     fn in_tcb_level(level: &TcbLevel, pck_extension: &SgxPckExtension) -> bool {
         const SVN_LENGTH: usize = 16;
@@ -246,4 +297,31 @@ impl TcbStanding {
             .all(|(&pck, tcb)| pck >= tcb) && pck_extension.tcb.pcesvn >= level.tcb.pcesvn()
 
     }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+
+    #[test]
+    fn test_parsing_tcb_info_without_tdx_module() {
+        let json = include_str!("../../data/tcbinfov2.json");
+        let tcb_info_and_signature: TcbInfoAndSignature = serde_json::from_str(json).unwrap();
+        let tcb_info = tcb_info_and_signature.get_tcb_info().unwrap();
+
+        assert_eq!(tcb_info.tdx_module.is_none(), true);
+    }
+
+    #[test]
+    fn test_parsing_tcb_info_with_tdx_module() {
+        let json = include_str!("../../data/tcbinfov3_00806f050000.json");
+        let tcb_info_and_signature: TcbInfoAndSignature = serde_json::from_str(json).unwrap();
+        let tcb_info = tcb_info_and_signature.get_tcb_info().unwrap();
+
+        assert_eq!(tcb_info.tdx_module.is_some(), true);
+    }
+
+
 }
