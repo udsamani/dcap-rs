@@ -5,6 +5,7 @@ pub mod utils;
 use std::time::SystemTime;
 
 use anyhow::{anyhow, bail, Context};
+use chrono::{DateTime, Utc};
 use p256::ecdsa::{signature::Verifier, VerifyingKey};
 use trust_store::TrustStore;
 use types::{
@@ -27,10 +28,10 @@ pub fn verify_dcap_quote(
     let tcb_info = verify_integrity(current_time, &collateral, &quote)?;
 
     // 2. Verify the Quoting Enclave source and all signatures in the Quote.
-    verify_quote(&collateral, &quote)?;
+    verify_quote(current_time, &collateral, &quote)?;
 
     // 3. Verify the status of Intel SGX TCB described in the chain.
-    let tcb_standing = verify_tcb_status(&tcb_info, &quote.signature.pck_extension)?;
+    let tcb_standing = verify_tcb_status(current_time, &tcb_info, &quote.signature.pck_extension)?;
     let (advisory_ids, mut tcb_status) = match tcb_standing {
         TcbStanding::UpToDate => (None, types::tcb_info::TcbStatus::UpToDate),
         TcbStanding::SWHardeningNeeded { advisory_ids } => (
@@ -43,7 +44,7 @@ pub fn verify_dcap_quote(
     if quote.header.tee_type == TDX_TEE_TYPE {
         let tdx_module_status =
             tcb_info.verify_tdx_module(quote.body.as_tdx_report_body().unwrap())?;
-        tcb_status = TcbInfo::convere_tcb_status_with_tdx_module(tcb_status, tdx_module_status);
+        tcb_status = TcbInfo::converge_tcb_status_with_tdx_module(tcb_status, tdx_module_status);
     }
 
     Ok(VerifiedOutput {
@@ -147,14 +148,23 @@ fn verify_integrity(
     Ok(tcb_info)
 }
 
-fn verify_quote(collateral: &Collateral, quote: &Quote) -> anyhow::Result<()> {
-    verify_quote_enclave_source(collateral, quote)?;
+fn verify_quote(
+    current_time: SystemTime,
+    collateral: &Collateral,
+    quote: &Quote,
+) -> anyhow::Result<()> {
+    verify_quote_enclave_source(current_time, collateral, quote)?;
     verify_quote_signatures(quote)?;
     Ok(())
 }
 
 /// Verify the quote enclave source
-fn verify_quote_enclave_source(collateral: &Collateral, quote: &Quote) -> anyhow::Result<()> {
+fn verify_quote_enclave_source(
+    current_time: SystemTime,
+    collateral: &Collateral,
+    quote: &Quote,
+) -> anyhow::Result<()> {
+    // Verify that the enclave identity root is signed by root certificate
     let qe_identity = collateral
         .qe_identity
         .validate_as_enclave_identity(
@@ -169,6 +179,12 @@ fn verify_quote_enclave_source(collateral: &Collateral, quote: &Quote) -> anyhow
             .context("failed to verify quote enclave identity")?,
         )
         .context("failed to verify quote enclave identity")?;
+
+    // Validate that current time is between issue_date and next_update
+    let current_time: DateTime<Utc> = current_time.into();
+    if current_time < qe_identity.issue_date || current_time > qe_identity.next_update {
+        bail!("tcb info is not valid at current time");
+    }
 
     // Compare the mr_signer values
     if qe_identity.mrsigner != quote.signature.qe_report_body.mr_signer {
@@ -261,9 +277,17 @@ fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
 /// Ensure the latest tcb info is not revoked, and is either up to date or only needs a configuration
 /// change.
 fn verify_tcb_status(
+    current_time: SystemTime,
     tcb_info: &TcbInfo,
     pck_extension: &SgxPckExtension,
 ) -> anyhow::Result<TcbStanding> {
+
+    // Make sure current time is between issue_date and next_update
+    let current_time: DateTime<Utc> = current_time.into();
+    if current_time < tcb_info.issue_date || current_time > tcb_info.next_update {
+        bail!("tcb info is not valid at current time");
+    }
+
     // Make sure the tcb_info matches the enclave's model/PCE version
     if pck_extension.fmspc != tcb_info.fmspc {
         return Err(anyhow::anyhow!(

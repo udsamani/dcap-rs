@@ -23,3 +23,4 @@ test: ## Run the tests
 .PHONY: build
 build: ## Build the project
 	@cargo build
+	@cargo test

@@ -87,7 +87,7 @@ pub struct TcbInfo {
     #[serde(skip_serializing_if = "Option::is_none", rename = "id")]
     id: Option<String>,
     version: TcbInfoVersion,
-    _issue_date: chrono::DateTime<Utc>,
+    pub issue_date: chrono::DateTime<Utc>,
     pub next_update: chrono::DateTime<Utc>,
     #[serde(with = "hex")]
     pub fmspc: [u8; 6],
@@ -149,7 +149,7 @@ impl TcbInfo {
         Ok(tcb_level.tcb_status)
     }
 
-    pub fn convere_tcb_status_with_tdx_module(
+    pub fn converge_tcb_status_with_tdx_module(
         platform_status: TcbStatus,
         tdx_module_status: TcbStatus,
     ) -> TcbStatus {
