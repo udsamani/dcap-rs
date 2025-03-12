@@ -77,11 +77,11 @@ pub struct EnclaveIdentity {
 
     /// Base 16-encoded string representing miscselect "golden" value (upon applying mask).
     #[serde(with = "u32_hex")]
-    pub miselect: UInt32LE,
+    pub miscselect: UInt32LE,
 
     /// Base 16-encoded string representing mask to be applied to miscselect value retrieved from the platform.
     #[serde(with = "u32_hex")]
-    pub miselect_mask: UInt32LE,
+    pub miscselect_mask: UInt32LE,
 
     /// Base 16-encoded string representing attributes "golden" value (upon applying mask).
     #[serde(with = "hex")]

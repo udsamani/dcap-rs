@@ -11,7 +11,6 @@ use crate::utils::Expireable;
 /// revocation checking to establish secure chains of trust from Intel's root certificates to
 /// attestation data.
 pub struct TrustStore {
-
     /// Trusted CAs (Certificate Authorities)
     pub trusted: BTreeMap<String, TrustedIdentity>,
     /// Trusted certificate revocation list.

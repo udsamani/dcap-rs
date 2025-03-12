@@ -203,6 +203,22 @@ fn verify_quote_enclave_source(collateral: &Collateral, quote: &Quote) -> anyhow
         bail!("qe attrtibutes mismatch");
     }
 
+    // Compare misc_select values
+    let misc_select = quote.signature.qe_report_body.misc_select;
+    let calculated_mask = qe_identity
+        .miscselect_mask
+        .as_bytes()
+        .iter()
+        .zip(misc_select.as_bytes().iter())
+        .map(|(&mask, &attribute)| mask & attribute);
+
+    if calculated_mask
+        .zip(qe_identity.miscselect.as_bytes().iter())
+        .any(|(masked, &identity)| masked != identity)
+    {
+        bail!("qe misc_select mismatch");
+    }
+
     Ok(())
 }
 
