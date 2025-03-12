@@ -12,7 +12,7 @@ use types::{
     collateral::Collateral,
     quote::{AttestationKeyType, Quote, TDX_TEE_TYPE},
     sgx_x509::SgxPckExtension,
-    tcb_info::{TcbInfo, TcbStanding},
+    tcb_info::{TcbInfo, TcbStatus},
     VerifiedOutput,
 };
 use utils::Expireable;
@@ -31,13 +31,13 @@ pub fn verify_dcap_quote(
     verify_quote(current_time, &collateral, &quote)?;
 
     // 3. Verify the status of Intel SGX TCB described in the chain.
-    let tcb_standing = verify_tcb_status(current_time, &tcb_info, &quote.signature.pck_extension)?;
-    let (advisory_ids, mut tcb_status) = match tcb_standing {
-        TcbStanding::UpToDate => (None, types::tcb_info::TcbStatus::UpToDate),
-        TcbStanding::SWHardeningNeeded { advisory_ids } => (
-            Some(advisory_ids),
-            types::tcb_info::TcbStatus::SWHardeningNeeded,
-        ),
+    let (mut tcb_status, advisory_ids) =
+        verify_tcb_status(current_time, &tcb_info, &quote.signature.pck_extension)?;
+
+    let advisory_ids = if advisory_ids.is_empty() {
+        None
+    } else {
+        Some(advisory_ids)
     };
 
     // 4. If TDX type then verify the status of TDX Module status and converge and send
@@ -285,7 +285,7 @@ fn verify_tcb_status(
     current_time: SystemTime,
     tcb_info: &TcbInfo,
     pck_extension: &SgxPckExtension,
-) -> anyhow::Result<TcbStanding> {
+) -> anyhow::Result<(TcbStatus, Vec<String>)> {
     // Make sure current time is between issue_date and next_update
     let current_time: DateTime<Utc> = current_time.into();
     if current_time < tcb_info.issue_date || current_time > tcb_info.next_update {
@@ -309,7 +309,7 @@ fn verify_tcb_status(
         ));
     }
 
-    TcbStanding::lookup(pck_extension, tcb_info)
+    TcbStatus::lookup(pck_extension, tcb_info)
 }
 
 #[cfg(test)]

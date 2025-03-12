@@ -128,7 +128,10 @@ impl TcbInfo {
 
         // Get the TDX module reference based on version
         let (mrsigner, attributes) = if tdx_module_version > 0 {
-            (&tdx_module_identity.mrsigner, &tdx_module_identity.attributes)
+            (
+                &tdx_module_identity.mrsigner,
+                &tdx_module_identity.attributes,
+            )
         } else {
             let tdx_module = self.tdx_module.as_ref().unwrap();
             (&tdx_module.mrsigner, &tdx_module.attributes)
@@ -328,36 +331,26 @@ pub struct TcbTdx {
     isvsvn: u8,
 }
 
-#[derive(Debug)]
-pub enum TcbStanding {
-    /// The platform is trusted
-    UpToDate,
-
-    /// The platform is on TCB level that is trustable if it is running software
-    /// with appropriate software mitigations. The user should use another mechanism
-    /// to verify that the returned advisory IDs have been mitigated.
-    SWHardeningNeeded { advisory_ids: Vec<String> },
-}
-
-impl TcbStanding {
+impl TcbStatus {
     /// Determine the status of the TCB level that is trustable for the platform represented
     /// by `pck_extension`.
     ///
-    /// Returns an error if the status is definitely not trustable (e.g. [`TcbStatus::Revoked`])
-    /// but may return success if the status should be interpreted by the user (e.g. [`TcbStatus::SWHardeningNeeded`]).
-    pub fn lookup(pck_extension: &SgxPckExtension, tcb_info: &TcbInfo) -> anyhow::Result<Self> {
+    /// Returns the TCB status and the advisory IDs that are associated with the TCB level.
+    pub fn lookup(
+        pck_extension: &SgxPckExtension,
+        tcb_info: &TcbInfo,
+    ) -> anyhow::Result<(Self, Vec<String>)> {
         let first_matching_level = tcb_info
             .tcb_levels
             .iter()
-            .find(|level| TcbStanding::in_tcb_level(level, pck_extension));
+            .find(|level| TcbStatus::in_tcb_level(level, pck_extension));
 
         first_matching_level
-            .map(|level| match level.tcb_status {
-                TcbStatus::UpToDate => Ok(TcbStanding::UpToDate),
-                TcbStatus::SWHardeningNeeded => Ok(TcbStanding::SWHardeningNeeded {
-                    advisory_ids: level.advisory_ids.clone().unwrap_or_default(),
-                }),
-                _ => Err(anyhow::anyhow!("invalid tcb status {:?}", level.tcb_status)),
+            .map(|level| {
+                Ok((
+                    level.tcb_status,
+                    level.advisory_ids.clone().unwrap_or_default(),
+                ))
             })
             .unwrap_or_else(|| Err(anyhow::anyhow!("unsupported TCB in pck extension")))
     }
