@@ -68,7 +68,7 @@ impl TryFrom<[u8; std::mem::size_of::<QuoteHeader>()]> for QuoteHeader {
             return Err(anyhow!("unsupported quote version"));
         }
 
-        if quote_header.attestation_key_type.get() != AttestationKeyType::ECDSA256P256 as u16 {
+        if quote_header.attestation_key_type.get() != AttestationKeyType::Ecdsa256P256 as u16 {
             return Err(anyhow!("unsupported attestation key type"));
         }
 
@@ -82,6 +82,6 @@ impl TryFrom<[u8; std::mem::size_of::<QuoteHeader>()]> for QuoteHeader {
 
 /// Attestation Key Type
 pub enum AttestationKeyType {
-    ECDSA256P256 = 2,
-    ECDSA384P384 = 3,
+    Ecdsa256P256 = 2,
+    Ecdsa384P384 = 3,
 }

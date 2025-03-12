@@ -10,7 +10,7 @@ use p256::ecdsa::{signature::Verifier, VerifyingKey};
 use trust_store::TrustStore;
 use types::{
     collateral::Collateral,
-    quote::{Quote, TDX_TEE_TYPE},
+    quote::{AttestationKeyType, Quote, TDX_TEE_TYPE},
     sgx_x509::SgxPckExtension,
     tcb_info::{TcbInfo, TcbStanding},
     VerifiedOutput,
@@ -262,6 +262,11 @@ fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
     let mut key = [0u8; 65];
     key[0] = 4;
     key[1..].copy_from_slice(&quote.signature.attestation_pub_key);
+
+    if quote.header.attestation_key_type.get() != AttestationKeyType::Ecdsa256P256 as u16 {
+        bail!("unsupported attestation key type");
+    }
+
     let attest_key = VerifyingKey::from_sec1_bytes(&key)
         .map_err(|e| anyhow!("failed to parse attest key: {e}"))?;
 
@@ -281,7 +286,6 @@ fn verify_tcb_status(
     tcb_info: &TcbInfo,
     pck_extension: &SgxPckExtension,
 ) -> anyhow::Result<TcbStanding> {
-
     // Make sure current time is between issue_date and next_update
     let current_time: DateTime<Utc> = current_time.into();
     if current_time < tcb_info.issue_date || current_time > tcb_info.next_update {
