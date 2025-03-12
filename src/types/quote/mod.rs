@@ -11,7 +11,7 @@ pub use signature::*;
 
 use crate::utils;
 
-use super::report::{EnclaveReportBody, TdxReportBody};
+use super::report::{EnclaveReportBody, Td10ReportBody};
 
 #[allow(non_snake_case)]
 const QUOTE_V3: u16 = 3;
@@ -56,13 +56,13 @@ impl Quote {
                 signature: quote_signature,
             })
         } else if quote_header.tee_type == TDX_TEE_TYPE {
-            let quote_body = utils::read_array::<{ std::mem::size_of::<TdxReportBody>() }>(bytes);
-            let quote_body = TdxReportBody::try_from(quote_body)?;
+            let quote_body = utils::read_array::<{ std::mem::size_of::<Td10ReportBody>() }>(bytes);
+            let quote_body = Td10ReportBody::try_from(quote_body)?;
             let quote_signature = QuoteSignatureData::read(bytes, quote_header.version.get())?;
 
             return Ok(Quote {
                 header: quote_header,
-                body: QuoteBody::TdxQuoteBody(quote_body),
+                body: QuoteBody::Td10QuoteBody(quote_body),
                 signature: quote_signature,
             });
         } else {

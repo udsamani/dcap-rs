@@ -4,7 +4,6 @@ use zerocopy::little_endian;
 const SGX_CPUSVN_SIZE: usize = 16;
 const SGX_HASH_SIZE: usize = 32;
 
-
 /// EnclaveReportBody is the body of the SGX report.
 ///
 #[derive(Debug, zerocopy::FromBytes, zerocopy::FromZeroes, zerocopy::AsBytes)]
@@ -73,14 +72,15 @@ pub struct EnclaveReportBody {
     // (320) User Report data
     // sgx_report_data_t report_data;
     pub user_report_data: [u8; 64],
-
     // Total 384 bytes
 }
 
 impl TryFrom<[u8; std::mem::size_of::<EnclaveReportBody>()]> for EnclaveReportBody {
     type Error = anyhow::Error;
 
-    fn try_from(value: [u8; std::mem::size_of::<EnclaveReportBody>()]) -> Result<Self, Self::Error> {
+    fn try_from(
+        value: [u8; std::mem::size_of::<EnclaveReportBody>()],
+    ) -> Result<Self, Self::Error> {
         let report = <Self as zerocopy::FromBytes>::read_from(&value)
             .expect("failed to read enclave report body");
 
@@ -91,8 +91,7 @@ impl TryFrom<[u8; std::mem::size_of::<EnclaveReportBody>()]> for EnclaveReportBo
 /// TdxReportBody is the body of the TDX Quote
 #[derive(Debug, zerocopy::FromBytes, zerocopy::FromZeroes, zerocopy::AsBytes)]
 #[repr(C)]
-pub struct TdxReportBody {
-
+pub struct Td10ReportBody {
     // (0) Describes the TCB of TDX.
     // uint8_t tee_tcb_svn[16];
     pub tee_tcb_svn: [u8; 16],
@@ -155,14 +154,13 @@ pub struct TdxReportBody {
     // (520) User Report Data.
     // sgx_report_data_t report_data;
     pub user_report_data: [u8; 64],
-
     // Total 584 bytes
 }
 
-impl TryFrom<[u8; std::mem::size_of::<TdxReportBody>()]> for TdxReportBody {
+impl TryFrom<[u8; std::mem::size_of::<Td10ReportBody>()]> for Td10ReportBody {
     type Error = anyhow::Error;
 
-    fn try_from(value: [u8; std::mem::size_of::<TdxReportBody>()]) -> Result<Self, Self::Error> {
+    fn try_from(value: [u8; std::mem::size_of::<Td10ReportBody>()]) -> Result<Self, Self::Error> {
         let report = <Self as zerocopy::FromBytes>::read_from(&value)
             .expect("failed to read tdx report body");
 

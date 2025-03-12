@@ -5,7 +5,7 @@ use p256::ecdsa::VerifyingKey;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 
-use super::{report::TdxReportBody, sgx_x509::SgxPckExtension};
+use super::{report::Td10ReportBody, sgx_x509::SgxPckExtension};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TcbInfoAndSignature {
@@ -103,41 +103,48 @@ pub struct TcbInfo {
 }
 
 impl TcbInfo {
-    pub fn verify_tdx_module(&self, quote_body: &TdxReportBody) -> anyhow::Result<TcbStatus> {
+    pub fn verify_tdx_module(&self, quote_body: &Td10ReportBody) -> anyhow::Result<TcbStatus> {
         if self.tdx_module.is_none() {
             return Err(anyhow::anyhow!("no tdx module found in tcb info"));
         }
 
-        let (tdx_module_isv_svn, tdx_module_version) = (quote_body.tee_tcb_svn[0], quote_body.tee_tcb_svn[1]);
+        let (tdx_module_isv_svn, tdx_module_version) =
+            (quote_body.tee_tcb_svn[0], quote_body.tee_tcb_svn[1]);
         let tdx_module_identity_id = format!("TDX_{:02}", tdx_module_version);
 
         if self.tdx_module_identities.is_none() {
-            return Err(anyhow::anyhow!("no tdx module identities found in tcb info"));
+            return Err(anyhow::anyhow!(
+                "no tdx module identities found in tcb info"
+            ));
         }
 
-        let tdx_module_identity = self.tdx_module_identities
+        let tdx_module_identity = self
+            .tdx_module_identities
             .as_ref()
             .unwrap()
             .iter()
-            .find(|identity| {
-                identity.id == tdx_module_identity_id
-            }).ok_or(anyhow::anyhow!("tdx module identity not found in tcb info"))?;
+            .find(|identity| identity.id == tdx_module_identity_id)
+            .ok_or(anyhow::anyhow!("tdx module identity not found in tcb info"))?;
 
         if tdx_module_identity.mrsigner != quote_body.mr_signer_seam {
-            return Err(anyhow::anyhow!("mrsigner mismatch between tdx module identity and tdx quote body"));
+            return Err(anyhow::anyhow!(
+                "mrsigner mismatch between tdx module identity and tdx quote body"
+            ));
         }
-
 
         if tdx_module_identity.attributes != quote_body.seam_attributes {
-            return Err(anyhow::anyhow!("attributes mismatch between tdx module identity and tdx quote body"));
+            return Err(anyhow::anyhow!(
+                "attributes mismatch between tdx module identity and tdx quote body"
+            ));
         }
 
-        let tcb_level = tdx_module_identity.tcb_levels
+        let tcb_level = tdx_module_identity
+            .tcb_levels
             .iter()
-            .find(|level| {
-                level.in_tcb_level(tdx_module_isv_svn)
-            }).ok_or(anyhow::anyhow!("no tcb level found for tdx module identity within tdx module levels"))?;
-
+            .find(|level| level.in_tcb_level(tdx_module_isv_svn))
+            .ok_or(anyhow::anyhow!(
+                "no tcb level found for tdx module identity within tdx module levels"
+            ))?;
 
         Ok(tcb_level.tcb_status)
     }
@@ -146,26 +153,21 @@ impl TcbInfo {
         platform_status: TcbStatus,
         tdx_module_status: TcbStatus,
     ) -> TcbStatus {
-
         // Only adjust if TDX module is OutOfDate
         if tdx_module_status != TcbStatus::OutOfDate {
             return tdx_module_status;
         }
 
         match platform_status {
-            TcbStatus::UpToDate | TcbStatus::SWHardeningNeeded => {
-                TcbStatus::OutOfDate
-            }
+            TcbStatus::UpToDate | TcbStatus::SWHardeningNeeded => TcbStatus::OutOfDate,
 
             TcbStatus::ConfigurationNeeded | TcbStatus::ConfigurationAndSWHardeningNeeded => {
                 TcbStatus::OutOfDateConfigurationNeeded
             }
 
-            _ => platform_status
+            _ => platform_status,
         }
-
     }
-
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -317,7 +319,6 @@ pub struct TcbTdx {
     isvsvn: u8,
 }
 
-
 #[derive(Debug)]
 pub enum TcbStanding {
     /// The platform is trusted
@@ -329,7 +330,6 @@ pub enum TcbStanding {
     SWHardeningNeeded { advisory_ids: Vec<String> },
 }
 
-
 impl TcbStanding {
     /// Determine the status of the TCB level that is trustable for the platform represented
     /// by `pck_extension`.
@@ -337,7 +337,6 @@ impl TcbStanding {
     /// Returns an error if the status is definitely not trustable (e.g. [`TcbStatus::Revoked`])
     /// but may return success if the status should be interpreted by the user (e.g. [`TcbStatus::SWHardeningNeeded`]).
     pub fn lookup(pck_extension: &SgxPckExtension, tcb_info: &TcbInfo) -> anyhow::Result<Self> {
-
         let first_matching_level = tcb_info
             .tcb_levels
             .iter()
@@ -347,15 +346,12 @@ impl TcbStanding {
             .map(|level| match level.tcb_status {
                 TcbStatus::UpToDate => Ok(TcbStanding::UpToDate),
                 TcbStatus::SWHardeningNeeded => Ok(TcbStanding::SWHardeningNeeded {
-                    advisory_ids: level.advisory_ids.clone().unwrap_or_default()
+                    advisory_ids: level.advisory_ids.clone().unwrap_or_default(),
                 }),
                 _ => Err(anyhow::anyhow!("invalid tcb status {:?}", level.tcb_status)),
             })
-            .unwrap_or_else(|| {
-                Err(anyhow::anyhow!("unsupported TCB in pck extension"))
-            })
+            .unwrap_or_else(|| Err(anyhow::anyhow!("unsupported TCB in pck extension")))
     }
-
 
     /// Returns true if all the pck componenets are >= all the tcb level components and e
     /// the pck pcesvn is >= the tcb level pcesvn.
@@ -366,16 +362,14 @@ impl TcbStanding {
         pck_components
             .iter()
             .zip(level.tcb.components())
-            .all(|(&pck, tcb)| pck >= tcb) && pck_extension.tcb.pcesvn >= level.tcb.pcesvn()
-
+            .all(|(&pck, tcb)| pck >= tcb)
+            && pck_extension.tcb.pcesvn >= level.tcb.pcesvn()
     }
 }
-
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
 
     #[test]
     fn test_parsing_tcb_info_without_tdx_module() {
@@ -394,6 +388,4 @@ mod tests {
 
         assert_eq!(tcb_info.tdx_module.is_some(), true);
     }
-
-
 }
