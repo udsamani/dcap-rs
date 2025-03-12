@@ -2,6 +2,10 @@ use super::{QUOTE_V3, QUOTE_V4};
 use anyhow::anyhow;
 use zerocopy::little_endian;
 
+pub const INTEL_QE_VENDOR_ID: [u8; 16] = [
+    0x93, 0x9A, 0x72, 0x33, 0xF7, 0x9C, 0x4C, 0xA9, 0x94, 0x0A, 0x0D, 0xB3, 0x95, 0x7F, 0x06, 0x07,
+];
+
 /// Header of the SGX Quote data structure.
 ///
 /// We use zerocopy for zero-copy parsing of the quote header from raw bytes.
@@ -64,6 +68,20 @@ impl TryFrom<[u8; std::mem::size_of::<QuoteHeader>()]> for QuoteHeader {
             return Err(anyhow!("unsupported quote version"));
         }
 
+        if quote_header.attestation_key_type.get() != AttestationKeyType::ECDSA256P256 as u16 {
+            return Err(anyhow!("unsupported attestation key type"));
+        }
+
+        if quote_header.qe_vendor_id != INTEL_QE_VENDOR_ID {
+            return Err(anyhow!("unsupported qe vendor id"));
+        }
+
         Ok(quote_header)
     }
+}
+
+/// Attestation Key Type
+pub enum AttestationKeyType {
+    ECDSA256P256 = 2,
+    ECDSA384P384 = 3,
 }
