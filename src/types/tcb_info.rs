@@ -126,13 +126,22 @@ impl TcbInfo {
             .find(|identity| identity.id == tdx_module_identity_id)
             .ok_or(anyhow::anyhow!("tdx module identity not found in tcb info"))?;
 
-        if tdx_module_identity.mrsigner != quote_body.mr_signer_seam {
+        // Get the TDX module reference based on version
+        let (mrsigner, attributes) = if tdx_module_version > 0 {
+            (&tdx_module_identity.mrsigner, &tdx_module_identity.attributes)
+        } else {
+            let tdx_module = self.tdx_module.as_ref().unwrap();
+            (&tdx_module.mrsigner, &tdx_module.attributes)
+        };
+
+        // Check for mismatches with a single validation
+        if mrsigner != &quote_body.mr_signer_seam {
             return Err(anyhow::anyhow!(
                 "mrsigner mismatch between tdx module identity and tdx quote body"
             ));
         }
 
-        if tdx_module_identity.attributes != quote_body.seam_attributes {
+        if attributes != &quote_body.seam_attributes {
             return Err(anyhow::anyhow!(
                 "attributes mismatch between tdx module identity and tdx quote body"
             ));
