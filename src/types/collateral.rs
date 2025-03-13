@@ -16,12 +16,6 @@ pub struct Collateral {
     #[serde(with = "crl")]
     pub root_ca_crl: CertificateList,
 
-    /// PCK (Provisioning Certificate Key) CRL in PEM format
-    /// Contains a list of revoked PCK Certificates.
-    /// It is used to check if platform's attestation key has been revoked.
-    #[serde(with = "crl")]
-    pub pck_crl: CertificateList,
-
     /* Issuer Certificate Chains */
 
     /// TCB Info and Identity Issuer Chain in PEM format

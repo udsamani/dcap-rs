@@ -96,17 +96,11 @@ fn verify_integrity(
         .context("failed to verify root ca crl")?;
 
 
-    // Verify PCK CRL Chain and add it to the store.
+    // Verify PCK Cert Chain and add it to the store.
+    let pck_cert_chain = quote.signature.pck_cert_chain.clone();
     trust_store
-        .verify_chain_leaf(&collateral.pck_crl_issuer_chain)
+        .verify_chain_leaf(&pck_cert_chain)
         .context("failed to verify pck crl issuer chain")?;
-
-    // Verify the pck crl and add it to the store.
-    trust_store.add_crl(
-        collateral.pck_crl.clone(),
-        true,
-        None
-    ).context("failed to verify pck crl")?;
 
     // Verify TCB Info Issuer Chain
     let tcb_issuer = trust_store
