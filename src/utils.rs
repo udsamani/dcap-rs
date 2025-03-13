@@ -5,7 +5,9 @@ use x509_cert::{certificate::CertificateInner, crl::CertificateList};
 /// A module for serializing and deserializing certificate chains.
 pub mod cert_chain {
     use serde::{Deserialize, de, ser};
-    use x509_cert::{Certificate, certificate::CertificateInner, der::EncodePem};
+    use x509_cert::{certificate::CertificateInner, der::EncodePem};
+
+    use super::cert_chain_processor;
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<CertificateInner>, D::Error>
     where
@@ -13,7 +15,7 @@ pub mod cert_chain {
     {
         let s = <String>::deserialize(deserializer)?;
         let pem = Box::new(s.as_bytes());
-        Certificate::load_pem_chain(&pem).map_err(de::Error::custom)
+        cert_chain_processor::load_pem_chain_bpf_friendly(&pem).map_err(de::Error::custom)
     }
 
     pub fn serialize<S>(certs: &Vec<CertificateInner>, serializer: S) -> Result<S::Ok, S::Error>
@@ -73,6 +75,100 @@ pub mod u32_hex {
     }
     pub fn serialize<S: Serializer>(value: &UInt32LE, serializer: S) -> Result<S::Ok, S::Error> {
         hex::serialize(value.as_bytes(), serializer)
+    }
+}
+
+pub mod cert_chain_processor {
+    use x509_cert::{certificate::CertificateInner, der::{DecodePem, Decode}};
+
+    /// A minimal function that returns ONLY certificate byte ranges
+    /// This avoids any parsing to stay under BPF stack limits
+    pub fn find_certificate_ranges(pem_data: &[u8]) -> Vec<(usize, usize)> {
+        let mut ranges = Vec::new();
+        let mut i = 0;
+
+        while i < pem_data.len() {
+            // Find BEGIN marker
+            if let Some(begin_idx) = find_next_match(&pem_data[i..], b"-----BEGIN CERTIFICATE-----") {
+                let begin_pos = i + begin_idx;
+
+                // Find END marker
+                if let Some(end_rel_idx) = find_next_match(&pem_data[begin_pos+27..], b"-----END CERTIFICATE-----") {
+                    let end_pos = begin_pos + 27 + end_rel_idx + 25;
+
+                    // Store range rather than content
+                    ranges.push((begin_pos, end_pos));
+
+                    // Move past this certificate
+                    i = end_pos;
+                } else {
+                    // Incomplete certificate, move past the BEGIN marker
+                    i = begin_pos + 27;
+                }
+            } else {
+                // No more certificates
+                break;
+            }
+        }
+
+        ranges
+    }
+
+    // Simple byte matcher with no allocation
+    fn find_next_match(data: &[u8], pattern: &[u8]) -> Option<usize> {
+        if pattern.len() > data.len() {
+            return None;
+        }
+
+        'outer: for i in 0..=(data.len() - pattern.len()) {
+            for (j, &p) in pattern.iter().enumerate() {
+                if data[i + j] != p {
+                    continue 'outer;
+                }
+            }
+            return Some(i);
+        }
+
+        None
+    }
+
+    /// Process a single certificate at the specified range
+    pub fn parse_single_cert(pem_data: &[u8], range: (usize, usize)) -> anyhow::Result<CertificateInner> {
+        let (start, end) = range;
+        if start >= pem_data.len() || end > pem_data.len() || start >= end {
+            return Err(anyhow::anyhow!("Invalid certificate range"));
+        }
+
+        let cert_slice = &pem_data[start..end];
+
+        // Try PEM format first
+        match CertificateInner::from_pem(cert_slice) {
+            Ok(cert) => return Ok(cert),
+            Err(_) => {} // Try DER next
+        }
+
+        // Try DER format as fallback (if this was base64 decoded already)
+        CertificateInner::from_der(cert_slice)
+            .map_err(|e| anyhow::anyhow!("Failed to parse certificate: {}", e))
+    }
+
+    /// Load certificate chain in chunks to avoid stack issues
+    pub fn load_pem_chain_bpf_friendly(pem_data: &[u8]) -> anyhow::Result<Vec<CertificateInner>> {
+        // Find all certificate ranges without parsing
+        let ranges = find_certificate_ranges(pem_data);
+        if ranges.is_empty() {
+            return Err(anyhow::anyhow!("No certificates found"));
+        }
+
+        // Process each certificate individually
+        let mut certificates = Vec::with_capacity(ranges.len());
+        for range in ranges {
+            // Each certificate is processed in isolation to minimize stack usage
+            let cert = parse_single_cert(pem_data, range)?;
+            certificates.push(cert);
+        }
+
+        Ok(certificates)
     }
 }
 

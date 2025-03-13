@@ -5,7 +5,7 @@ use zerocopy::little_endian;
 
 use crate::{
     types::{report::EnclaveReportBody, sgx_x509::SgxPckExtension},
-    utils,
+    utils::{self, cert_chain_processor},
 };
 
 #[derive(Debug)]
@@ -87,7 +87,7 @@ impl<'a> QuoteCertData<'a> {
         let cert_data = utils::read_bytes(&mut data, cert_data_size as usize);
         let cert_data = cert_data.strip_suffix(&[0]).unwrap_or(cert_data);
 
-        let pck_cert_chain = CertificateInner::load_pem_chain(cert_data)
+        let pck_cert_chain = cert_chain_processor::load_pem_chain_bpf_friendly(cert_data)
             .context("Failed to parse PCK certificate chain")?;
 
         let pck_extension = pck_cert_chain
@@ -123,7 +123,7 @@ impl<'a> QuoteCertData<'a> {
         }
 
         let cert_data = self.cert_data.strip_suffix(&[0]).unwrap_or(self.cert_data);
-        let pck_cert_chain = CertificateInner::load_pem_chain(cert_data)
+        let pck_cert_chain = cert_chain_processor::load_pem_chain_bpf_friendly(cert_data)
             .context("Failed to parse PCK certificate chain")?;
 
         let pck_extension = pck_cert_chain
