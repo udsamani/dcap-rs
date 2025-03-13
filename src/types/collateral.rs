@@ -57,7 +57,7 @@ mod tests {
 
     #[test]
     fn encode_decode_collateral_json() {
-        let json = include_str!("../../data/full_collateral.json");
+        let json = include_str!("../../data/full_collateral_sgx.json");
         let collateral: Collateral = serde_json::from_str(json).expect("json to parse");
         let json2 = serde_json::to_string(&collateral).expect("json to serialize");
         println!("{json2}");

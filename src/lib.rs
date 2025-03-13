@@ -326,9 +326,17 @@ mod tests {
     use super::*;
 
     fn sgx_quote_data() -> (Collateral, Quote) {
-        let collateral = include_str!("../data/full_collateral.json");
+        let collateral = include_str!("../data/full_collateral_sgx.json");
         let collateral: Collateral = serde_json::from_str(collateral).unwrap();
         let quote = include_bytes!("../data/quote_sgx.bin");
+        let quote = Quote::read(&mut quote.as_slice()).unwrap();
+        (collateral, quote)
+    }
+
+    fn tdx_quote_data() -> (Collateral, Quote) {
+        let collateral = include_str!("../data/full_collateral_tdx.json");
+        let collateral: Collateral = serde_json::from_str(collateral).unwrap();
+        let quote = include_bytes!("../data/quote_tdx.bin");
         let quote = Quote::read(&mut quote.as_slice()).unwrap();
         (collateral, quote)
     }
@@ -355,7 +363,6 @@ mod tests {
     #[test]
     fn verify_integrity() {
         let (collateral, quote) = sgx_quote_data();
-        // Warning: SystemTime::now() is an insecure api on fortanix targets
         super::verify_integrity(test_time(), &collateral, &quote)
             .expect("certificate chain integrity should succeed");
     }
@@ -363,6 +370,14 @@ mod tests {
     #[test]
     fn e2e_sgx_quote() {
         let (collateral, quote) = sgx_quote_data();
+        super::verify_dcap_quote(test_time(), collateral, quote)
+            .expect("certificate chain integrity should succeed");
+    }
+
+    #[ignore = "This test is failing as the tdx quote is not from same collateral as sgx quote. Need to gather correct collateral for tdx quote."]
+    #[test]
+    fn e2e_tdx_quote() {
+        let (collateral, quote) = tdx_quote_data();
         super::verify_dcap_quote(test_time(), collateral, quote)
             .expect("certificate chain integrity should succeed");
     }
