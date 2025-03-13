@@ -1,7 +1,7 @@
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use chrono::Utc;
-use p256::ecdsa::signature::Verifier;
 use p256::ecdsa::VerifyingKey;
+use p256::ecdsa::signature::Verifier;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 
@@ -175,7 +175,7 @@ impl TcbInfo {
 
             TcbStatus::ConfigurationNeeded | TcbStatus::ConfigurationAndSWHardeningNeeded => {
                 TcbStatus::OutOfDateConfigurationNeeded
-            }
+            },
 
             _ => platform_status,
         }
@@ -195,14 +195,12 @@ impl TcbInfo {
 
         match platform_status {
             // These statuses get overridden to OutOfDate
-            TcbStatus::UpToDate | TcbStatus::SWHardeningNeeded => {
-                TcbStatus::OutOfDate
-            }
+            TcbStatus::UpToDate | TcbStatus::SWHardeningNeeded => TcbStatus::OutOfDate,
 
             // These statuses change to reflect both configuration and outdated problems
             TcbStatus::ConfigurationNeeded | TcbStatus::ConfigurationAndSWHardeningNeeded => {
                 TcbStatus::OutOfDateConfigurationNeeded
-            }
+            },
 
             // All other statuses remain unchanged
             _ => platform_status,

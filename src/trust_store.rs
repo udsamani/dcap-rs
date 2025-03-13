@@ -1,8 +1,11 @@
-use std::{collections::{BTreeMap, BTreeSet}, time::SystemTime};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    time::SystemTime,
+};
 
 use anyhow::bail;
-use x509_verify::VerifyingKey;
 use x509_cert::{certificate::CertificateInner, crl::CertificateList};
+use x509_verify::VerifyingKey;
 
 use crate::utils::Expireable;
 
@@ -23,9 +26,8 @@ pub struct TrustStore {
 #[derive(Debug, Clone)]
 pub struct TrustedIdentity {
     pub cert: CertificateInner,
-    pub pk: VerifyingKey
+    pub pk: VerifyingKey,
 }
-
 
 impl TrustStore {
     /// Creates a new trust store with the given root certificates
@@ -37,7 +39,10 @@ impl TrustStore {
     /// # Security Considerations
     /// * The provided roots establish the foundation of trust
     /// * Current_time must come from a secure source on production systems
-    pub fn new(current_time: SystemTime, trusted_certs: Vec<CertificateInner>) -> anyhow::Result<Self> {
+    pub fn new(
+        current_time: SystemTime,
+        trusted_certs: Vec<CertificateInner>,
+    ) -> anyhow::Result<Self> {
         let mut trusted = BTreeMap::new();
 
         for cert in trusted_certs {
@@ -45,24 +50,24 @@ impl TrustStore {
                 .try_into()
                 .map_err(|e| anyhow::anyhow!("failed to decode key from certificate: {}", e))?;
 
-            trusted.insert(cert.tbs_certificate.subject.to_string(), TrustedIdentity { cert, pk });
-
+            trusted.insert(
+                cert.tbs_certificate.subject.to_string(),
+                TrustedIdentity { cert, pk },
+            );
         }
-
 
         Ok(Self {
             trusted,
             crl: BTreeMap::new(),
-            current_time
+            current_time,
         })
     }
-
 
     pub fn add_crl(
         &mut self,
         crl: CertificateList,
         verify_signature: bool,
-        intermediaries: Option<&BTreeMap<String, TrustedIdentity>>
+        intermediaries: Option<&BTreeMap<String, TrustedIdentity>>,
     ) -> anyhow::Result<()> {
         // Check validity period if available
         if let Some(next_update) = crl.tbs_cert_list.next_update {
@@ -76,15 +81,15 @@ impl TrustStore {
             let issuer = crl.tbs_cert_list.issuer.to_string();
             let signer = self.find_issuer(issuer, intermediaries)?;
 
-            signer.pk.verify_strict(&crl)
+            signer
+                .pk
+                .verify_strict(&crl)
                 .map_err(|e| anyhow::anyhow!("failed to verify crl signature: {}", e))?;
         }
 
         // Store revoked certificates by issuer
         let issuer = crl.tbs_cert_list.issuer.to_string();
-        let issuer_revoked = self.crl
-            .entry(issuer)
-            .or_default();
+        let issuer_revoked = self.crl.entry(issuer).or_default();
 
         // Add all revoked certificates
         if let Some(revoked_certs) = crl.tbs_cert_list.revoked_certificates {
@@ -96,15 +101,16 @@ impl TrustStore {
         Ok(())
     }
 
-
     /// Verify the leaf node in a certificate chain is rooted in the trust store
     /// and does not use any revoked certificates.
     ///
     /// # Parameters
     /// * `chain` - The certificate chain to verify.
     ///
-    pub fn verify_chain_leaf(&mut self, chain: &[CertificateInner]) -> anyhow::Result<TrustedIdentity> {
-
+    pub fn verify_chain_leaf(
+        &mut self,
+        chain: &[CertificateInner],
+    ) -> anyhow::Result<TrustedIdentity> {
         // If the chain is empty, it is not valid
         if chain.is_empty() {
             bail!("certificate chain is empty");
@@ -114,7 +120,6 @@ impl TrustStore {
         if !chain.valid_at(self.current_time) {
             bail!("certificate chain is expired");
         }
-
 
         // Work through the certificate chain from the root (last) certificate.
         let mut chain = chain.iter().rev().peekable();
@@ -135,12 +140,14 @@ impl TrustStore {
                 .verify_strict(cert)
                 .map_err(|e| anyhow::anyhow!("failed to verify issuer signature: {}", e))?;
 
-
             let pk = (cert)
                 .try_into()
                 .map_err(|e| anyhow::anyhow!("failed to decode key from certificate: {}", e))?;
 
-            let identity = TrustedIdentity { cert: cert.clone(), pk };
+            let identity = TrustedIdentity {
+                cert: cert.clone(),
+                pk,
+            };
 
             if chain.peek().is_none() {
                 // If we are at the leaf node of the chain, discard intermediary identities.
@@ -153,7 +160,6 @@ impl TrustStore {
                 intermediary.insert(subject, identity);
             }
         }
-
     }
 
     /// Check the current crls to ensure a certificate is not revoked
@@ -187,5 +193,4 @@ impl TrustStore {
         }
         bail!("failed to find trusted issuer")
     }
-
 }

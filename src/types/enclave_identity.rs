@@ -1,8 +1,8 @@
-use super::{tcb_info::TcbStatus, UInt32LE};
+use super::{UInt32LE, tcb_info::TcbStatus};
 use crate::utils::u32_hex;
 use anyhow::Context;
 use chrono::Utc;
-use p256::ecdsa::{signature::Verifier, Signature, VerifyingKey};
+use p256::ecdsa::{Signature, VerifyingKey, signature::Verifier};
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 
@@ -104,7 +104,8 @@ pub struct EnclaveIdentity {
 
 impl EnclaveIdentity {
     pub fn get_qe_tcb_status(&self, isv_svn: u16) -> QeTcbStatus {
-        self.tcb_levels.iter()
+        self.tcb_levels
+            .iter()
             .find(|level| level.tcb.isvsvn <= isv_svn)
             .map(|level| level.tcb_status.clone())
             .unwrap_or(QeTcbStatus::Unspecified)
@@ -155,7 +156,9 @@ impl Into<TcbStatus> for QeTcbStatus {
             QeTcbStatus::OutOfDate => TcbStatus::OutOfDate,
             QeTcbStatus::Revoked => TcbStatus::Revoked,
             QeTcbStatus::ConfigurationNeeded => TcbStatus::ConfigurationNeeded,
-            QeTcbStatus::ConfigurationAndSWHardeningNeeded => TcbStatus::ConfigurationAndSWHardeningNeeded,
+            QeTcbStatus::ConfigurationAndSWHardeningNeeded => {
+                TcbStatus::ConfigurationAndSWHardeningNeeded
+            },
             QeTcbStatus::SWHardeningNeeded => TcbStatus::SWHardeningNeeded,
             QeTcbStatus::OutOfDateConfigurationNeeded => TcbStatus::OutOfDateConfigurationNeeded,
             QeTcbStatus::Unspecified => TcbStatus::Unspecified,

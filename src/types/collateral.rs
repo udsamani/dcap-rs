@@ -1,15 +1,12 @@
-use x509_cert::{crl::CertificateList, Certificate};
 use crate::utils::{cert_chain, crl};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
+use x509_cert::{Certificate, crl::CertificateList};
 
 use super::{enclave_identity::QuotingEnclaveIdentityAndSignature, tcb_info::TcbInfoAndSignature};
 
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Collateral {
-
     /* Certificate Revocation List */
-
     /// Root CA CRL in PEM format
     /// Contains a list of revoked certificates signed by Intel SGX Root CA.
     /// It is used to check if any certificates in the verification chain have been revoked.
@@ -17,7 +14,6 @@ pub struct Collateral {
     pub root_ca_crl: CertificateList,
 
     /* Issuer Certificate Chains */
-
     /// TCB Info and Identity Issuer Chain in PEM format
     /// Chain of certificates used to verify TCB Info and Identity signature.
     #[serde(with = "cert_chain")]
@@ -28,9 +24,7 @@ pub struct Collateral {
     #[serde(with = "cert_chain")]
     pub pck_crl_issuer_chain: Vec<Certificate>,
 
-
     /* Structured Data */
-
     /// TCB Info Structure
     /// Contains security version information and TCB levels.
     pub tcb_info: TcbInfoAndSignature,

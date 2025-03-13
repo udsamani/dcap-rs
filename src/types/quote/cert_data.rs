@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use p256::ecdsa::Signature;
 use x509_cert::certificate::CertificateInner;
 use zerocopy::little_endian;

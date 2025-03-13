@@ -4,8 +4,8 @@ use x509_cert::{certificate::CertificateInner, crl::CertificateList};
 
 /// A module for serializing and deserializing certificate chains.
 pub mod cert_chain {
-    use x509_cert::{certificate::CertificateInner, Certificate, der::EncodePem};
-    use serde::{de, ser, Deserialize};
+    use serde::{Deserialize, de, ser};
+    use x509_cert::{Certificate, certificate::CertificateInner, der::EncodePem};
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<CertificateInner>, D::Error>
     where
@@ -22,20 +22,21 @@ pub mod cert_chain {
         let mut string = String::new();
         for cert in certs {
             string.push_str(
-                &cert.to_pem(p256::pkcs8::LineEnding::LF).map_err(ser::Error::custom)?,
+                &cert
+                    .to_pem(p256::pkcs8::LineEnding::LF)
+                    .map_err(ser::Error::custom)?,
             );
         }
         serializer.serialize_str(&string)
     }
 }
 
-
 /// A module for serializing and deserializing CRLs.
 pub mod crl {
     use std::str::FromStr;
 
     use pem::Pem;
-    use serde::{de, ser, Deserialize, Deserializer, Serializer};
+    use serde::{Deserialize, Deserializer, Serializer, de, ser};
     use x509_cert::crl::CertificateList;
     use x509_cert::der::{Decode, Encode};
 
@@ -55,7 +56,6 @@ pub mod crl {
         serializer.serialize_str(&pem.to_string())
     }
 }
-
 
 pub mod u32_hex {
     use serde::Serializer;

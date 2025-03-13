@@ -16,8 +16,8 @@
 
 use std::collections::HashMap;
 
-use anyhow::{anyhow, Context, Error, Result};
-use asn1::{oid, ObjectIdentifier, SequenceOf};
+use anyhow::{Context, Error, Result, anyhow};
+use asn1::{ObjectIdentifier, SequenceOf, oid};
 
 /// Intel SGX Extensions OID root
 /// Identifies the root OID for all SGX extensions (1.2.840.113741.1.13.1)
@@ -257,8 +257,24 @@ impl<'a> TryFrom<SequenceOf<'a, SgxExtension<'a>>> for Tcb {
         let mut pcesvn = None;
         let mut cpusvn = None;
 
-        let [compsvn01, compsvn02, compsvn03, compsvn04, compsvn05, compsvn06, compsvn07, compsvn08, compsvn09, compsvn10, compsvn11, compsvn12, compsvn13, compsvn14, compsvn15, compsvn16] =
-            &mut compsvn;
+        let [
+            compsvn01,
+            compsvn02,
+            compsvn03,
+            compsvn04,
+            compsvn05,
+            compsvn06,
+            compsvn07,
+            compsvn08,
+            compsvn09,
+            compsvn10,
+            compsvn11,
+            compsvn12,
+            compsvn13,
+            compsvn14,
+            compsvn15,
+            compsvn16,
+        ] = &mut compsvn;
 
         parse_extensions(
             value,

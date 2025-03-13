@@ -4,16 +4,21 @@ pub mod utils;
 
 use std::time::SystemTime;
 
-use anyhow::{anyhow, bail, Context};
+use anyhow::{Context, anyhow, bail};
 use chrono::{DateTime, Utc};
-use p256::ecdsa::{signature::Verifier, VerifyingKey};
-use x509_verify::VerifyingKey as X509VerifyingKey;
+use p256::ecdsa::{VerifyingKey, signature::Verifier};
 use trust_store::TrustStore;
 use types::{
-    collateral::Collateral, enclave_identity::QeTcbStatus, quote::{AttestationKeyType, Quote, TDX_TEE_TYPE}, sgx_x509::SgxPckExtension, tcb_info::{TcbInfo, TcbStatus}, VerifiedOutput
+    VerifiedOutput,
+    collateral::Collateral,
+    enclave_identity::QeTcbStatus,
+    quote::{AttestationKeyType, Quote, TDX_TEE_TYPE},
+    sgx_x509::SgxPckExtension,
+    tcb_info::{TcbInfo, TcbStatus},
 };
 use utils::Expireable;
 use x509_cert::der::{Any, DecodePem};
+use x509_verify::VerifyingKey as X509VerifyingKey;
 use zerocopy::AsBytes;
 
 pub const INTEL_ROOT_CA_PEM: &str = "\
@@ -69,7 +74,10 @@ fn verify_integrity(
     collateral: &Collateral,
     quote: &Quote,
 ) -> anyhow::Result<types::tcb_info::TcbInfo> {
-    if !collateral.tcb_info_and_qe_identity_issuer_chain.valid_at(current_time) {
+    if !collateral
+        .tcb_info_and_qe_identity_issuer_chain
+        .valid_at(current_time)
+    {
         bail!("expired tcb info issuer chain");
     }
 
@@ -91,11 +99,11 @@ fn verify_integrity(
         bail!("root certificate is not self issued");
     }
 
-
     let spki = x509_cert::spki::SubjectPublicKeyInfo::<Any, _>::from_pem(INTEL_ROOT_CA_PEM)?;
     let intel_root_ca = X509VerifyingKey::try_from(spki).unwrap();
-    intel_root_ca.verify(root_ca).context("Root CA signature verification failed")?;
-
+    intel_root_ca
+        .verify(root_ca)
+        .context("Root CA signature verification failed")?;
 
     // Build initial trust store with the root certificate
     let mut trust_store = TrustStore::new(current_time, vec![root_ca.clone()])?;
@@ -104,7 +112,6 @@ fn verify_integrity(
     trust_store
         .add_crl(collateral.root_ca_crl.clone(), true, None)
         .context("failed to verify root ca crl")?;
-
 
     // Verify PCK Cert Chain and add it to the store.
     let pck_cert_chain = quote.signature.pck_cert_chain.clone();
@@ -321,7 +328,6 @@ fn verify_tcb_status(
     TcbStatus::lookup(pck_extension, tcb_info)
 }
 
-
 #[cfg(test)]
 mod tests {
 
@@ -385,5 +391,4 @@ mod tests {
         super::verify_dcap_quote(test_time(), collateral, quote)
             .expect("certificate chain integrity should succeed");
     }
-
 }
