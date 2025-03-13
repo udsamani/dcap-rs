@@ -24,20 +24,15 @@ pub struct Collateral {
 
     /* Issuer Certificate Chains */
 
-    /// TCB Info Issuer Chain in PEM format
-    /// Chain of certificates used to verify TCB Info signature.
+    /// TCB Info and Identity Issuer Chain in PEM format
+    /// Chain of certificates used to verify TCB Info and Identity signature.
     #[serde(with = "cert_chain")]
-    pub tcb_info_issuer_chain: Vec<Certificate>,
+    pub tcb_info_and_qe_identity_issuer_chain: Vec<Certificate>,
 
     /// PCK CRL Issuer Chain in PEM format
     /// Chain of certificates used to verify PCK CR Signatures
     #[serde(with = "cert_chain")]
     pub pck_crl_issuer_chain: Vec<Certificate>,
-
-    /// Identity Issuer Chain in PEM format
-    /// Chain of certificates used to verify QE Identity signature.
-    #[serde(with = "cert_chain")]
-    pub qe_identity_issuer_chain: Vec<Certificate>,
 
 
     /* Structured Data */

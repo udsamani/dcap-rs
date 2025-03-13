@@ -61,7 +61,7 @@ fn verify_integrity(
     collateral: &Collateral,
     quote: &Quote,
 ) -> anyhow::Result<types::tcb_info::TcbInfo> {
-    if !collateral.tcb_info_issuer_chain.valid_at(current_time) {
+    if !collateral.tcb_info_and_qe_identity_issuer_chain.valid_at(current_time) {
         bail!("expired tcb info issuer chain");
     }
 
@@ -74,7 +74,7 @@ fn verify_integrity(
     }
 
     let root_ca = collateral
-        .tcb_info_issuer_chain
+        .tcb_info_and_qe_identity_issuer_chain
         .last()
         .context("tcb issuer chain is empty")?;
 
@@ -110,7 +110,7 @@ fn verify_integrity(
 
     // Verify TCB Info Issuer Chain
     let tcb_issuer = trust_store
-        .verify_chain_leaf(&collateral.tcb_info_issuer_chain)
+        .verify_chain_leaf(&collateral.tcb_info_and_qe_identity_issuer_chain)
         .context("failed to verify tcb info issuer chain")?;
 
     // Get TCB Signer Public Key
@@ -139,7 +139,7 @@ fn verify_integrity(
 
     // Verify the quote identity issuer chain
     let _qe_id_issuer = trust_store
-        .verify_chain_leaf(&collateral.qe_identity_issuer_chain)
+        .verify_chain_leaf(&collateral.tcb_info_and_qe_identity_issuer_chain)
         .context("failed to verify pck crl issuer certificate chain")?;
 
     Ok(tcb_info)
@@ -167,7 +167,7 @@ fn verify_quote_enclave_source(
         .qe_identity
         .validate_as_enclave_identity(
             &VerifyingKey::from_sec1_bytes(
-                collateral.qe_identity_issuer_chain[0]
+                collateral.tcb_info_and_qe_identity_issuer_chain[0]
                     .tbs_certificate
                     .subject_public_key_info
                     .subject_public_key
