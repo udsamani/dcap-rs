@@ -64,9 +64,9 @@ impl QuoteSignatureData {
             utils::read_array::<{ std::mem::size_of::<EnclaveReportBody>() }>(bytes);
         let qe_report_body = EnclaveReportBody::try_from(qe_report_body)?;
 
-        let qe_report_signature = utils::read_array::<64>(bytes);
+        let qe_report_signature = utils::read_bytes(bytes, 64);
         let qe_report_signature =
-            Signature::from_slice(&qe_report_signature).context("QE Report Signature")?;
+            Signature::from_slice(qe_report_signature).context("QE Report Signature")?;
 
         let auth_data_size = utils::read_from_bytes::<little_endian::U16>(bytes)
             .ok_or_else(|| anyhow!("Failed to read auth data size"))?

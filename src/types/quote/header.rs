@@ -18,7 +18,7 @@ pub const INTEL_QE_VENDOR_ID: [u8; 16] = [
 ///
 /// The FromBytes trait ensures the type is safe to interpret from any byte sequence
 /// The FromZeroes trait ensures the type is safe to create from zero bytes
-#[derive(Debug, zerocopy::FromBytes, zerocopy::FromZeroes)]
+#[derive(Debug, zerocopy::FromBytes, zerocopy::FromZeroes, zerocopy::AsBytes)]
 #[repr(C)]
 pub struct QuoteHeader {
     /// Version of the quote data structure.

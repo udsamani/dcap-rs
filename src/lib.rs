@@ -270,10 +270,16 @@ fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
     let attest_key = VerifyingKey::from_sec1_bytes(&key)
         .map_err(|e| anyhow!("failed to parse attest key: {e}"))?;
 
-    let data = quote.body.as_bytes();
+    // Allocate once with the right size
+    let header_bytes = quote.header.as_bytes();
+    let body_bytes = quote.body.as_bytes();
+    let mut data = Vec::with_capacity(header_bytes.len() + body_bytes.len());
+    data.extend_from_slice(header_bytes);
+    data.extend_from_slice(body_bytes);
+
     let sig = quote.signature.isv_signature;
     attest_key
-        .verify(data, &sig)
+        .verify(&data, &sig)
         .context("failed to verify quote signature")?;
 
     Ok(())
@@ -351,6 +357,13 @@ mod tests {
         let (collateral, quote) = sgx_quote_data();
         // Warning: SystemTime::now() is an insecure api on fortanix targets
         super::verify_integrity(test_time(), &collateral, &quote)
+            .expect("certificate chain integrity should succeed");
+    }
+
+    #[test]
+    fn e2e_sgx_quote() {
+        let (collateral, quote) = sgx_quote_data();
+        super::verify_dcap_quote(test_time(), collateral, quote)
             .expect("certificate chain integrity should succeed");
     }
 
