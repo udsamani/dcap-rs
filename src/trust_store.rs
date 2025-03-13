@@ -14,12 +14,13 @@ pub struct TrustStore {
     /// Trusted CAs (Certificate Authorities)
     pub trusted: BTreeMap<String, TrustedIdentity>,
     /// Trusted certificate revocation list.
-    pub crl: BTreeSet<String>,
+    pub crl: BTreeMap<String, BTreeSet<String>>,
     /// Current time for validity checks
     pub current_time: SystemTime,
 }
 
 /// Wrapper for pre-parse trusted identity for verification.
+#[derive(Debug, Clone)]
 pub struct TrustedIdentity {
     pub cert: CertificateInner,
     pub pk: VerifyingKey
@@ -51,43 +52,47 @@ impl TrustStore {
 
         Ok(Self {
             trusted,
-            crl: BTreeSet::default(),
+            crl: BTreeMap::new(),
             current_time
         })
     }
 
 
-    /// Push a trusted CRL to an existing trust store.
-    ///
-    /// # Parameters
-    /// * `crl` - The CRL to push to the trust store.
-    ///
-    /// # Security Considerations
-    /// * The CRL must be trusted and signed by the root certificate.
-    /// * The CRL must be valid at the current time.
-    pub fn push_trusted_crl(&mut self, crl: CertificateList) {
-        if let Some(revoked_certs) = crl.tbs_cert_list.revoked_certificates {
-            for cert in revoked_certs {
-                self.crl.insert(cert.serial_number.to_string());
+    pub fn add_crl(
+        &mut self,
+        crl: CertificateList,
+        verify_signature: bool,
+        intermediaries: Option<&BTreeMap<String, TrustedIdentity>>
+    ) -> anyhow::Result<()> {
+        // Check validity period if available
+        if let Some(next_update) = crl.tbs_cert_list.next_update {
+            if next_update.to_system_time() < self.current_time {
+                bail!("CRL has expired");
             }
         }
-    }
 
-    /// Verify an untrusted CRL against a trusted or intermediary signer in that store,
-    /// and push the new CRL to the store. Does not affect or remove any existing trusted identities
-    /// in the store.
-    ///
-    /// # Parameters
-    /// * `crl` - The CRL to push to the trust store.
-    pub fn push_unverified_crl(&mut self, crl: CertificateList) -> anyhow::Result<()> {
-        let signer = self.find_issuer(crl.tbs_cert_list.issuer.to_string(), None)?;
+        // Verify signature if requested
+        if verify_signature {
+            let issuer = crl.tbs_cert_list.issuer.to_string();
+            let signer = self.find_issuer(issuer, intermediaries)?;
 
-        signer
-            .pk
-            .verify_strict(&crl)
-            .map_err(|e| anyhow::anyhow!("failed to verify crl signature: {}", e))?;
+            signer.pk.verify_strict(&crl)
+                .map_err(|e| anyhow::anyhow!("failed to verify crl signature: {}", e))?;
+        }
 
-        self.push_trusted_crl(crl);
+        // Store revoked certificates by issuer
+        let issuer = crl.tbs_cert_list.issuer.to_string();
+        let issuer_revoked = self.crl
+            .entry(issuer)
+            .or_default();
+
+        // Add all revoked certificates
+        if let Some(revoked_certs) = crl.tbs_cert_list.revoked_certificates {
+            for cert in revoked_certs {
+                issuer_revoked.insert(cert.serial_number.to_string());
+            }
+        }
+
         Ok(())
     }
 
@@ -98,7 +103,7 @@ impl TrustStore {
     /// # Parameters
     /// * `chain` - The certificate chain to verify.
     ///
-    pub fn verify_chain_leaf(&self, chain: &[CertificateInner]) -> anyhow::Result<TrustedIdentity> {
+    pub fn verify_chain_leaf(&mut self, chain: &[CertificateInner]) -> anyhow::Result<TrustedIdentity> {
 
         // If the chain is empty, it is not valid
         if chain.is_empty() {
@@ -140,7 +145,8 @@ impl TrustStore {
             if chain.peek().is_none() {
                 // If we are at the leaf node of the chain, discard intermediary identities.
                 // and return the verified identity.
-                intermediary.clear();
+                self.trusted.extend(intermediary);
+                self.trusted.insert(subject, identity.clone());
                 return Ok(identity);
             } else {
                 // Otherwise, add the identity to the intermediary store.
@@ -152,11 +158,14 @@ impl TrustStore {
 
     /// Check the current crls to ensure a certificate is not revoked
     fn check_crls(&self, cert: &CertificateInner) -> anyhow::Result<()> {
-        if self
-            .crl
-            .contains(&cert.tbs_certificate.serial_number.to_string())
-        {
-            bail!("certificate is revoked");
+        let issuer = cert.tbs_certificate.issuer.to_string();
+        let serial = cert.tbs_certificate.serial_number.to_string();
+
+        // Check if this issuer has any revoked certificates
+        if let Some(issuer_revoked) = self.crl.get(&issuer) {
+            if issuer_revoked.contains(&serial) {
+                bail!("certificate is revoked");
+            }
         }
 
         Ok(())

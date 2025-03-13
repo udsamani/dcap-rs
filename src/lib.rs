@@ -92,23 +92,21 @@ fn verify_integrity(
 
     // Verify that the CRL is signed by Intel and add it to the store.
     trust_store
-        .push_unverified_crl(collateral.root_ca_crl.clone())
+        .add_crl(collateral.root_ca_crl.clone(), true, None)
         .context("failed to verify root ca crl")?;
 
+
     // Verify PCK CRL Chain and add it to the store.
-    let pck_issuer = trust_store
+    trust_store
         .verify_chain_leaf(&collateral.pck_crl_issuer_chain)
         .context("failed to verify pck crl issuer chain")?;
 
     // Verify the pck crl and add it to the store.
-    pck_issuer
-        .pk
-        .verify(&collateral.pck_crl)
-        .map_err(|e| anyhow::anyhow!("failed to verify pck crl signature: {}", e))?;
-    if !collateral.pck_crl.valid_at(current_time) {
-        bail!("expired pck crl");
-    }
-    trust_store.push_trusted_crl(collateral.pck_crl.clone());
+    trust_store.add_crl(
+        collateral.pck_crl.clone(),
+        true,
+        None
+    ).context("failed to verify pck crl")?;
 
     // Verify TCB Info Issuer Chain
     let tcb_issuer = trust_store
@@ -317,7 +315,22 @@ fn verify_tcb_status(
 #[cfg(test)]
 mod tests {
 
+    use std::time::Duration;
+
     use super::*;
+
+    fn sgx_quote_data() -> (Collateral, Quote) {
+        let collateral = include_str!("../data/full_collateral.json");
+        let collateral: Collateral = serde_json::from_str(collateral).unwrap();
+        let quote = include_bytes!("../data/quote_sgx.bin");
+        let quote = Quote::read(&mut quote.as_slice()).unwrap();
+        (collateral, quote)
+    }
+
+    fn test_time() -> SystemTime {
+        // Aug 29th 4:20pm, ~24 hours after quote was generated
+        SystemTime::UNIX_EPOCH + Duration::from_secs(1724962800)
+    }
 
     #[test]
     fn parse_tdx_quote() {
@@ -332,4 +345,13 @@ mod tests {
         let quote = Quote::read(&mut bytes.as_slice()).unwrap();
         println!("{:?}", quote);
     }
+
+    #[test]
+    fn verify_integrity() {
+        let (collateral, quote) = sgx_quote_data();
+        // Warning: SystemTime::now() is an insecure api on fortanix targets
+        super::verify_integrity(test_time(), &collateral, &quote)
+            .expect("certificate chain integrity should succeed");
+    }
+
 }

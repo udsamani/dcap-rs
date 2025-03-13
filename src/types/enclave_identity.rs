@@ -122,8 +122,8 @@ pub struct QeTcbLevel {
     /// TCB level status
     tcb_status: QeTcbStatus,
     #[serde(rename = "advisoryIDs")]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub advisory_ids: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub advisory_ids: Option<Vec<String>>,
 }
 
 /// TCB level status
