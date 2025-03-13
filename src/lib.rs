@@ -9,11 +9,7 @@ use chrono::{DateTime, Utc};
 use p256::ecdsa::{signature::Verifier, VerifyingKey};
 use trust_store::TrustStore;
 use types::{
-    collateral::Collateral,
-    quote::{AttestationKeyType, Quote, TDX_TEE_TYPE},
-    sgx_x509::SgxPckExtension,
-    tcb_info::{TcbInfo, TcbStatus},
-    VerifiedOutput,
+    collateral::Collateral, enclave_identity::QeTcbStatus, quote::{AttestationKeyType, Quote, TDX_TEE_TYPE}, sgx_x509::SgxPckExtension, tcb_info::{TcbInfo, TcbStatus}, VerifiedOutput
 };
 use utils::Expireable;
 use zerocopy::AsBytes;
@@ -28,7 +24,7 @@ pub fn verify_dcap_quote(
     let tcb_info = verify_integrity(current_time, &collateral, &quote)?;
 
     // 2. Verify the Quoting Enclave source and all signatures in the Quote.
-    verify_quote(current_time, &collateral, &quote)?;
+    let qe_tcb_status = verify_quote(current_time, &collateral, &quote)?;
 
     // 3. Verify the status of Intel SGX TCB described in the chain.
     let (mut tcb_status, advisory_ids) =
@@ -46,6 +42,9 @@ pub fn verify_dcap_quote(
             tcb_info.verify_tdx_module(quote.body.as_tdx_report_body().unwrap())?;
         tcb_status = TcbInfo::converge_tcb_status_with_tdx_module(tcb_status, tdx_module_status);
     }
+
+    // 5. Converge platform TCB status with QE TCB status
+    tcb_status = TcbInfo::converge_tcb_status_with_qe_tcb(tcb_status, qe_tcb_status.into());
 
     Ok(VerifiedOutput {
         quote_version: quote.header.version.get(),
@@ -152,18 +151,19 @@ fn verify_quote(
     current_time: SystemTime,
     collateral: &Collateral,
     quote: &Quote,
-) -> anyhow::Result<()> {
-    verify_quote_enclave_source(current_time, collateral, quote)?;
+) -> anyhow::Result<QeTcbStatus> {
+    let qe_tcb_status = verify_quote_enclave_source(current_time, collateral, quote)?;
     verify_quote_signatures(quote)?;
-    Ok(())
+    Ok(qe_tcb_status)
 }
 
-/// Verify the quote enclave source
+/// Verify the quote enclave source and return the TCB status
+/// of the quoting enclave.
 fn verify_quote_enclave_source(
     current_time: SystemTime,
     collateral: &Collateral,
     quote: &Quote,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<QeTcbStatus> {
     // Verify that the enclave identity root is signed by root certificate
     let qe_identity = collateral
         .qe_identity
@@ -235,7 +235,9 @@ fn verify_quote_enclave_source(
         bail!("qe misc_select mismatch");
     }
 
-    Ok(())
+    let qe_tcb_status = qe_identity.get_qe_tcb_status(quote.signature.qe_report_body.isv_svn.get());
+
+    Ok(qe_tcb_status)
 }
 
 /// Verify the quote signatures.

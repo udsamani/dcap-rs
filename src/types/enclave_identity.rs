@@ -1,4 +1,4 @@
-use super::UInt32LE;
+use super::{tcb_info::TcbStatus, UInt32LE};
 use crate::utils::u32_hex;
 use anyhow::Context;
 use chrono::Utc;
@@ -102,6 +102,15 @@ pub struct EnclaveIdentity {
     pub tcb_levels: Vec<QeTcbLevel>,
 }
 
+impl EnclaveIdentity {
+    pub fn get_qe_tcb_status(&self, isv_svn: u16) -> QeTcbStatus {
+        self.tcb_levels.iter()
+            .find(|level| level.tcb.isvsvn <= isv_svn)
+            .map(|level| level.tcb_status.clone())
+            .unwrap_or(QeTcbStatus::Unspecified)
+    }
+}
+
 /// Enclave TCB level
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -118,16 +127,40 @@ pub struct QeTcbLevel {
 }
 
 /// TCB level status
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub enum QeTcbStatus {
     /// TCB level of the SGX platform is up-to-date.
     UpToDate,
+    /// TCB level of SGX platform requires SW hardening.
+    SWHardeningNeeded,
     /// TCB level of SGX platform is outdated.
     OutOfDate,
+    /// TCB level of SGX platform is outdated and requires a configuration change.
+    OutOfDateConfigurationNeeded,
+    /// TCB level of SGX platform is outdated and requires a configuration change.
+    ConfigurationNeeded,
+    /// TCB level of SGX platform is outdated and requires a configuration change and SW hardening.
+    ConfigurationAndSWHardeningNeeded,
     /// TCB level of SGX platform is revoked.
     Revoked,
     /// Unknown TCB level status.
     Unspecified,
+}
+
+#[allow(clippy::from_over_into)]
+impl Into<TcbStatus> for QeTcbStatus {
+    fn into(self) -> TcbStatus {
+        match self {
+            QeTcbStatus::UpToDate => TcbStatus::UpToDate,
+            QeTcbStatus::OutOfDate => TcbStatus::OutOfDate,
+            QeTcbStatus::Revoked => TcbStatus::Revoked,
+            QeTcbStatus::ConfigurationNeeded => TcbStatus::ConfigurationNeeded,
+            QeTcbStatus::ConfigurationAndSWHardeningNeeded => TcbStatus::ConfigurationAndSWHardeningNeeded,
+            QeTcbStatus::SWHardeningNeeded => TcbStatus::SWHardeningNeeded,
+            QeTcbStatus::OutOfDateConfigurationNeeded => TcbStatus::OutOfDateConfigurationNeeded,
+            QeTcbStatus::Unspecified => TcbStatus::Unspecified,
+        }
+    }
 }
 
 impl std::str::FromStr for QeTcbStatus {

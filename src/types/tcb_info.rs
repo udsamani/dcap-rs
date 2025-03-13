@@ -180,6 +180,34 @@ impl TcbInfo {
             _ => platform_status,
         }
     }
+    /// Converge platform TCB status with QE TCB status
+    ///
+    /// This function implements the rules for combining platform and Quote Enclave TCB
+    /// status values, prioritizing the more severe status according to Intel's rules.
+    pub fn converge_tcb_status_with_qe_tcb(
+        platform_status: TcbStatus,
+        qe_status: TcbStatus,
+    ) -> TcbStatus {
+        // Only adjust status if QE is OutOfDate
+        if qe_status != TcbStatus::OutOfDate {
+            return platform_status;
+        }
+
+        match platform_status {
+            // These statuses get overridden to OutOfDate
+            TcbStatus::UpToDate | TcbStatus::SWHardeningNeeded => {
+                TcbStatus::OutOfDate
+            }
+
+            // These statuses change to reflect both configuration and outdated problems
+            TcbStatus::ConfigurationNeeded | TcbStatus::ConfigurationAndSWHardeningNeeded => {
+                TcbStatus::OutOfDateConfigurationNeeded
+            }
+
+            // All other statuses remain unchanged
+            _ => platform_status,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -201,6 +229,7 @@ pub enum TcbStatus {
     ConfigurationAndSWHardeningNeeded,
     OutOfDateConfigurationNeeded,
     Revoked,
+    Unspecified,
 }
 
 /// Contains information identifying a TcbLevel.
