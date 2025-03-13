@@ -81,10 +81,6 @@ fn verify_integrity(
         bail!("expired tcb info issuer chain");
     }
 
-    if !collateral.pck_crl_issuer_chain.valid_at(current_time) {
-        bail!("expired pck crl issuer chain");
-    }
-
     if !quote.signature.pck_cert_chain.valid_at(current_time) {
         bail!("expired pck cert chain");
     }

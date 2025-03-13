@@ -19,11 +19,6 @@ pub struct Collateral {
     #[serde(with = "cert_chain")]
     pub tcb_info_and_qe_identity_issuer_chain: Vec<Certificate>,
 
-    /// PCK CRL Issuer Chain in PEM format
-    /// Chain of certificates used to verify PCK CR Signatures
-    #[serde(with = "cert_chain")]
-    pub pck_crl_issuer_chain: Vec<Certificate>,
-
     /* Structured Data */
     /// TCB Info Structure
     /// Contains security version information and TCB levels.
