@@ -12,7 +12,8 @@ pub mod cert_chain {
         D: serde::Deserializer<'de>,
     {
         let s = <String>::deserialize(deserializer)?;
-        Certificate::load_pem_chain(s.as_bytes()).map_err(de::Error::custom)
+        let pem = Box::new(s.as_bytes());
+        Certificate::load_pem_chain(&pem).map_err(de::Error::custom)
     }
 
     pub fn serialize<S>(certs: &Vec<CertificateInner>, serializer: S) -> Result<S::Ok, S::Error>
