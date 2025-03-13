@@ -329,6 +329,12 @@ mod tests {
 
     use std::time::Duration;
 
+    use x509_cert::{Certificate, crl::CertificateList, der::Decode};
+
+    use crate::types::{
+        enclave_identity::QuotingEnclaveIdentityAndSignature, tcb_info::TcbInfoAndSignature,
+    };
+
     use super::*;
 
     fn sgx_quote_data() -> (Collateral, Quote) {
@@ -340,16 +346,40 @@ mod tests {
     }
 
     fn tdx_quote_data() -> (Collateral, Quote) {
-        let collateral = include_str!("../data/full_collateral_tdx.json");
-        let collateral: Collateral = serde_json::from_str(collateral).unwrap();
         let quote = include_bytes!("../data/quote_tdx.bin");
         let quote = Quote::read(&mut quote.as_slice()).unwrap();
+
+        let tcb_info_and_qe_identity_issuer_chain = include_bytes!("../data/signing_cert.pem");
+        let tcb_info_and_qe_identity_issuer_chain =
+            Certificate::load_pem_chain(tcb_info_and_qe_identity_issuer_chain).unwrap();
+
+        let root_ca_crl = include_bytes!("../data/intel_root_ca_crl.der");
+        let root_ca_crl = CertificateList::from_der(root_ca_crl).unwrap();
+
+        let tcb_info = include_bytes!("../data/tcb_info_v3_with_tdx_module.json");
+        let tcb_info: TcbInfoAndSignature = serde_json::from_slice(tcb_info).unwrap();
+
+        let qe_identity = include_bytes!("../data/qeidentityv2_apiv4.json");
+        let qe_identity: QuotingEnclaveIdentityAndSignature =
+            serde_json::from_slice(qe_identity).unwrap();
+
+        let collateral = Collateral {
+            tcb_info_and_qe_identity_issuer_chain,
+            root_ca_crl,
+            tcb_info,
+            qe_identity,
+        };
         (collateral, quote)
     }
 
-    fn test_time() -> SystemTime {
+    fn test_sgx_time() -> SystemTime {
         // Aug 29th 4:20pm, ~24 hours after quote was generated
         SystemTime::UNIX_EPOCH + Duration::from_secs(1724962800)
+    }
+
+    fn test_tdx_time() -> SystemTime {
+        // Pinned September 10th, 2024, 6:49am GMT
+        SystemTime::UNIX_EPOCH + Duration::from_secs(1725950994)
     }
 
     #[test]
@@ -369,22 +399,21 @@ mod tests {
     #[test]
     fn verify_integrity() {
         let (collateral, quote) = sgx_quote_data();
-        super::verify_integrity(test_time(), &collateral, &quote)
+        super::verify_integrity(test_sgx_time(), &collateral, &quote)
             .expect("certificate chain integrity should succeed");
     }
 
     #[test]
     fn e2e_sgx_quote() {
         let (collateral, quote) = sgx_quote_data();
-        super::verify_dcap_quote(test_time(), collateral, quote)
+        super::verify_dcap_quote(test_sgx_time(), collateral, quote)
             .expect("certificate chain integrity should succeed");
     }
 
-    #[ignore = "This test is failing as the tdx quote is not from same collateral as sgx quote. Need to gather correct collateral for tdx quote."]
     #[test]
     fn e2e_tdx_quote() {
         let (collateral, quote) = tdx_quote_data();
-        super::verify_dcap_quote(test_time(), collateral, quote)
+        super::verify_dcap_quote(test_tdx_time(), collateral, quote)
             .expect("certificate chain integrity should succeed");
     }
 }

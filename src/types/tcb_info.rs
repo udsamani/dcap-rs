@@ -31,7 +31,6 @@ impl TcbInfoAndSignature {
             .verify(self.tcb_info_raw.get().as_bytes(), &sig)
             .expect("valid signature expected");
 
-
         if tcb_info
             .tcb_levels
             .iter()
@@ -110,7 +109,7 @@ impl TcbInfo {
 
         let (tdx_module_isv_svn, tdx_module_version) =
             (quote_body.tee_tcb_svn[0], quote_body.tee_tcb_svn[1]);
-        let tdx_module_identity_id = format!("TDX_{:02}", tdx_module_version);
+        let tdx_module_identity_id = format!("TDX_{:02x}", tdx_module_version);
 
         if self.tdx_module_identities.is_none() {
             return Err(anyhow::anyhow!(
@@ -349,7 +348,7 @@ pub struct TdxTcbLevel {
 
 impl TdxTcbLevel {
     pub fn in_tcb_level(&self, isv_svn: u8) -> bool {
-        self.tcb.isvsvn >= isv_svn
+        self.tcb.isvsvn <= isv_svn
     }
 }
 
