@@ -270,7 +270,6 @@ fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
     let attest_key = VerifyingKey::from_sec1_bytes(&key)
         .map_err(|e| anyhow!("failed to parse attest key: {e}"))?;
 
-    // Allocate once with the right size
     let header_bytes = quote.header.as_bytes();
     let body_bytes = quote.body.as_bytes();
     let mut data = Vec::with_capacity(header_bytes.len() + body_bytes.len());

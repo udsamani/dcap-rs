@@ -25,13 +25,3 @@ pub struct VerifiedOutput {
     pub quote_body: QuoteBody,
     pub advisory_ids: Option<Vec<String>>,
 }
-
-impl VerifiedOutput {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        todo!()
-    }
-
-    pub fn from_bytes(_slice: &[u8]) -> VerifiedOutput {
-        todo!()
-    }
-}
