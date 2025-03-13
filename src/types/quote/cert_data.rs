@@ -107,9 +107,11 @@ impl<'a> QuoteCertData<'a> {
             qe_report,
             qe_report_signature,
             qe_auth_data,
-            pck_cert_chain: pck_cert_chain.clone(),
-            pck_extension: SgxPckExtension::from_der(pck_extension.extn_value.as_bytes())
-                .context("PCK Extension")?,
+            pck_cert_chain_data: PckCertChainData {
+                pck_cert_chain: pck_cert_chain.clone(),
+                pck_extension: SgxPckExtension::from_der(pck_extension.extn_value.as_bytes())
+                    .context("PCK Extension")?,
+            },
         })
     }
 
@@ -152,9 +154,7 @@ pub struct QuotingEnclaveReportCertData<'a> {
 
     pub qe_auth_data: &'a [u8],
 
-    pub pck_cert_chain: Vec<CertificateInner>,
-
-    pub pck_extension: SgxPckExtension,
+    pub pck_cert_chain_data: PckCertChainData,
 }
 
 pub struct PckCertChainData {

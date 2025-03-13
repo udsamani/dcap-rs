@@ -106,8 +106,8 @@ impl QuoteSignatureData {
             qe_report_body: quoting_enclave_report_cert_data.qe_report,
             qe_report_signature: quoting_enclave_report_cert_data.qe_report_signature,
             auth_data: quoting_enclave_report_cert_data.qe_auth_data.to_vec(),
-            pck_cert_chain: quoting_enclave_report_cert_data.pck_cert_chain,
-            pck_extension: quoting_enclave_report_cert_data.pck_extension,
+            pck_cert_chain: quoting_enclave_report_cert_data.pck_cert_chain_data.pck_cert_chain,
+            pck_extension: quoting_enclave_report_cert_data.pck_cert_chain_data.pck_extension,
         })
     }
 
