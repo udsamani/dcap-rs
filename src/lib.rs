@@ -7,12 +7,20 @@ use std::time::SystemTime;
 use anyhow::{anyhow, bail, Context};
 use chrono::{DateTime, Utc};
 use p256::ecdsa::{signature::Verifier, VerifyingKey};
+use x509_verify::VerifyingKey as X509VerifyingKey;
 use trust_store::TrustStore;
 use types::{
     collateral::Collateral, enclave_identity::QeTcbStatus, quote::{AttestationKeyType, Quote, TDX_TEE_TYPE}, sgx_x509::SgxPckExtension, tcb_info::{TcbInfo, TcbStatus}, VerifiedOutput
 };
 use utils::Expireable;
+use x509_cert::der::{Any, DecodePem};
 use zerocopy::AsBytes;
+
+pub const INTEL_ROOT_CA_PEM: &str = "\
+-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEC6nEwMDIYZOj/iPWsCzaEKi71OiO
+SLRFhWGjbnBVJfVnkY4u3IjkDYYL0MxO4mqsyYjlBalTVYxFP2sJBK5zlA==
+-----END PUBLIC KEY-----";
 
 pub fn verify_dcap_quote(
     current_time: SystemTime,
@@ -83,9 +91,11 @@ fn verify_integrity(
         bail!("root certificate is not self issued");
     }
 
-    // Should we validate that it is Intel Root CA ?
-    // The idea would be to have the INTEL_ROOT_CA in memory.
-    // TODO(udit): Identify whether the above is needed ?
+
+    let spki = x509_cert::spki::SubjectPublicKeyInfo::<Any, _>::from_pem(INTEL_ROOT_CA_PEM)?;
+    let intel_root_ca = X509VerifyingKey::try_from(spki).unwrap();
+    intel_root_ca.verify(root_ca).context("Root CA signature verification failed")?;
+
 
     // Build initial trust store with the root certificate
     let mut trust_store = TrustStore::new(current_time, vec![root_ca.clone()])?;
@@ -310,6 +320,7 @@ fn verify_tcb_status(
 
     TcbStatus::lookup(pck_extension, tcb_info)
 }
+
 
 #[cfg(test)]
 mod tests {
