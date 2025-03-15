@@ -79,7 +79,10 @@ pub mod u32_hex {
 }
 
 pub mod cert_chain_processor {
-    use x509_cert::{certificate::CertificateInner, der::{DecodePem, Decode}};
+    use x509_cert::{
+        certificate::CertificateInner,
+        der::{Decode, DecodePem},
+    };
 
     /// A minimal function that returns ONLY certificate byte ranges
     /// This avoids any parsing to stay under BPF stack limits
@@ -89,11 +92,14 @@ pub mod cert_chain_processor {
 
         while i < pem_data.len() {
             // Find BEGIN marker
-            if let Some(begin_idx) = find_next_match(&pem_data[i..], b"-----BEGIN CERTIFICATE-----") {
+            if let Some(begin_idx) = find_next_match(&pem_data[i..], b"-----BEGIN CERTIFICATE-----")
+            {
                 let begin_pos = i + begin_idx;
 
                 // Find END marker
-                if let Some(end_rel_idx) = find_next_match(&pem_data[begin_pos+27..], b"-----END CERTIFICATE-----") {
+                if let Some(end_rel_idx) =
+                    find_next_match(&pem_data[begin_pos + 27..], b"-----END CERTIFICATE-----")
+                {
                     let end_pos = begin_pos + 27 + end_rel_idx + 25;
 
                     // Store range rather than content
@@ -133,7 +139,10 @@ pub mod cert_chain_processor {
     }
 
     /// Process a single certificate at the specified range
-    pub fn parse_single_cert(pem_data: &[u8], range: (usize, usize)) -> anyhow::Result<CertificateInner> {
+    pub fn parse_single_cert(
+        pem_data: &[u8],
+        range: (usize, usize),
+    ) -> anyhow::Result<CertificateInner> {
         let (start, end) = range;
         if start >= pem_data.len() || end > pem_data.len() || start >= end {
             return Err(anyhow::anyhow!("Invalid certificate range"));
@@ -144,7 +153,7 @@ pub mod cert_chain_processor {
         // Try PEM format first
         match CertificateInner::from_pem(cert_slice) {
             Ok(cert) => return Ok(cert),
-            Err(_) => {} // Try DER next
+            Err(_) => {}, // Try DER next
         }
 
         // Try DER format as fallback (if this was base64 decoded already)

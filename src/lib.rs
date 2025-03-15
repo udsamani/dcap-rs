@@ -329,10 +329,13 @@ mod tests {
 
     use std::time::Duration;
 
-    use x509_cert::{Certificate, crl::CertificateList, der::Decode};
+    use x509_cert::{crl::CertificateList, der::Decode};
 
-    use crate::types::{
-        enclave_identity::QuotingEnclaveIdentityAndSignature, tcb_info::TcbInfoAndSignature,
+    use crate::{
+        types::{
+            enclave_identity::QuotingEnclaveIdentityAndSignature, tcb_info::TcbInfoAndSignature,
+        },
+        utils::cert_chain_processor,
     };
 
     use super::*;
@@ -351,7 +354,10 @@ mod tests {
 
         let tcb_info_and_qe_identity_issuer_chain = include_bytes!("../data/signing_cert.pem");
         let tcb_info_and_qe_identity_issuer_chain =
-            Certificate::load_pem_chain(tcb_info_and_qe_identity_issuer_chain).unwrap();
+            cert_chain_processor::load_pem_chain_bpf_friendly(
+                tcb_info_and_qe_identity_issuer_chain,
+            )
+            .unwrap();
 
         let root_ca_crl = include_bytes!("../data/intel_root_ca_crl.der");
         let root_ca_crl = CertificateList::from_der(root_ca_crl).unwrap();
