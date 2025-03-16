@@ -109,6 +109,14 @@ fn verify_integrity(
         .add_crl(collateral.root_ca_crl.clone(), true, None)
         .context("failed to verify root ca crl")?;
 
+    trust_store
+        .add_crl(collateral.platform_ca_crl.clone(), false, None)
+        .context("failed to verify platform ca crl")?;
+
+    trust_store
+        .add_crl(collateral.processor_ca_crl.clone(), false, None)
+        .context("failed to verify processor ca crl")?;
+
     // Verify PCK Cert Chain and add it to the store.
     let pck_cert_chain = quote.signature.pck_cert_chain.clone();
     trust_store
@@ -369,9 +377,17 @@ mod tests {
         let qe_identity: QuotingEnclaveIdentityAndSignature =
             serde_json::from_slice(qe_identity).unwrap();
 
+        let platform_ca_crl = include_bytes!("../data/pck_platform_crl.der");
+        let platform_ca_crl = CertificateList::from_der(platform_ca_crl).unwrap();
+
+        let processor_ca_crl = include_bytes!("../data/pck_processor_crl.der");
+        let processor_ca_crl = CertificateList::from_der(processor_ca_crl).unwrap();
+
         let collateral = Collateral {
             tcb_info_and_qe_identity_issuer_chain,
             root_ca_crl,
+            platform_ca_crl,
+            processor_ca_crl,
             tcb_info,
             qe_identity,
         };

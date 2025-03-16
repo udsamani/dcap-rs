@@ -69,12 +69,6 @@ impl TrustStore {
         verify_signature: bool,
         intermediaries: Option<&BTreeMap<String, TrustedIdentity>>,
     ) -> anyhow::Result<()> {
-        // Check validity period if available
-        if let Some(next_update) = crl.tbs_cert_list.next_update {
-            if next_update.to_system_time() < self.current_time {
-                bail!("CRL has expired");
-            }
-        }
 
         // Verify signature if requested
         if verify_signature {

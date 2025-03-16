@@ -13,6 +13,18 @@ pub struct Collateral {
     #[serde(with = "crl")]
     pub root_ca_crl: CertificateList,
 
+    /// Platform CA CRL in PEM format
+    /// Contains a list of revoked certificates signed by Intel Platform CA.
+    /// It is used to check if any certificates in the verification chain have been revoked.
+    #[serde(with = "crl")]
+    pub platform_ca_crl: CertificateList,
+
+    /// Processor CA CRL in PEM format
+    /// Contains a list of revoked certificates signed by Intel Processor CA.
+    /// It is used to check if any certificates in the verification chain have been revoked.
+    #[serde(with = "crl")]
+    pub processor_ca_crl: CertificateList,
+
     /* Issuer Certificate Chains */
     /// TCB Info and Identity Issuer Chain in PEM format
     /// Chain of certificates used to verify TCB Info and Identity signature.
