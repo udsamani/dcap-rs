@@ -23,7 +23,7 @@ pub const TDX_TEE_TYPE: u32 = 0x00000081;
 
 /// A DCAP quote, used for verification.
 #[derive(Debug)]
-pub struct Quote {
+pub struct Quote<'a> {
     /// Header of the SGX Quote data structure.
     pub header: QuoteHeader,
 
@@ -31,11 +31,11 @@ pub struct Quote {
     pub body: QuoteBody,
 
     /// Signature of the quote body.
-    pub signature: QuoteSignatureData,
+    pub signature: QuoteSignatureData<'a>,
 }
 
-impl Quote {
-    pub fn read(bytes: &mut &[u8]) -> anyhow::Result<Self> {
+impl<'a> Quote<'a> {
+    pub fn read(bytes: &mut &'a [u8]) -> anyhow::Result<Self> {
         if bytes.len() < std::mem::size_of::<QuoteHeader>() {
             return Err(anyhow!("incorrect buffer size"));
         }

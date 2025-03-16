@@ -340,7 +340,7 @@ mod tests {
 
     use super::*;
 
-    fn sgx_quote_data() -> (Collateral, Quote) {
+    fn sgx_quote_data() -> (Collateral, Quote<'static>) {
         let collateral = include_str!("../data/full_collateral_sgx.json");
         let collateral: Collateral = serde_json::from_str(collateral).unwrap();
         let quote = include_bytes!("../data/quote_sgx.bin");
@@ -348,7 +348,7 @@ mod tests {
         (collateral, quote)
     }
 
-    fn tdx_quote_data() -> (Collateral, Quote) {
+    fn tdx_quote_data() -> (Collateral, Quote<'static>) {
         let quote = include_bytes!("../data/quote_tdx.bin");
         let quote = Quote::read(&mut quote.as_slice()).unwrap();
 
