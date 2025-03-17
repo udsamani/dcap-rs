@@ -41,7 +41,7 @@ pub fn verify_dcap_quote(
 
     // 3. Verify the status of Intel SGX TCB described in the chain.
     let (mut tcb_status, advisory_ids) =
-        verify_tcb_status(current_time, &tcb_info, &quote.signature.pck_extension)?;
+        verify_tcb_status(&tcb_info, &quote.signature.pck_extension)?;
 
     let advisory_ids = if advisory_ids.is_empty() {
         None
@@ -166,7 +166,7 @@ fn verify_integrity(
     // Verify the TCB Info
     let tcb_info = collateral
         .tcb_info
-        .as_tcb_info_and_verify(tcb_signer)
+        .as_tcb_info_and_verify(current_time, tcb_signer)
         .context("failed to verify tcb info signature")?;
 
     // Verify the quote identity issuer chain
@@ -319,15 +319,9 @@ fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
 /// Ensure the latest tcb info is not revoked, and is either up to date or only needs a configuration
 /// change.
 fn verify_tcb_status(
-    current_time: SystemTime,
     tcb_info: &TcbInfo,
     pck_extension: &SgxPckExtension,
 ) -> anyhow::Result<(TcbStatus, Vec<String>)> {
-    // Make sure current time is between issue_date and next_update
-    let current_time: DateTime<Utc> = current_time.into();
-    if current_time < tcb_info.issue_date || current_time > tcb_info.next_update {
-        bail!("tcb info is not valid at current time");
-    }
 
     // Make sure the tcb_info matches the enclave's model/PCE version
     if pck_extension.fmspc != tcb_info.fmspc {

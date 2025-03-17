@@ -1,5 +1,7 @@
+use std::time::SystemTime;
+
 use anyhow::{Context, bail};
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use p256::ecdsa::VerifyingKey;
 use p256::ecdsa::signature::Verifier;
 use serde::{Deserialize, Serialize};
@@ -23,10 +25,18 @@ impl TryFrom<String> for TcbInfoAndSignature {
 }
 
 impl TcbInfoAndSignature {
-    pub fn as_tcb_info_and_verify(&self, public_key: VerifyingKey) -> anyhow::Result<TcbInfo> {
-        let sig = p256::ecdsa::Signature::from_slice(&self.signature).unwrap();
+    pub fn as_tcb_info_and_verify(&self, current_time: SystemTime, public_key: VerifyingKey) -> anyhow::Result<TcbInfo> {
+
         let tcb_info: TcbInfo =
             serde_json::from_str(self.tcb_info_raw.get()).context("tcb info")?;
+
+        // Make sure current time is between issue_date and next_update
+        let current_time: DateTime<Utc> = current_time.into();
+        if current_time < tcb_info.issue_date || current_time > tcb_info.next_update {
+            bail!("tcb info is not valid at current time");
+        }
+
+        let sig = p256::ecdsa::Signature::from_slice(&self.signature).unwrap();
         public_key
             .verify(self.tcb_info_raw.get().as_bytes(), &sig)
             .expect("valid signature expected");
