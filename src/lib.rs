@@ -285,7 +285,7 @@ fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
     let pck_pkey = VerifyingKey::from_sec1_bytes(pck_pk_bytes)
         .map_err(|e| anyhow!("failed to parse pck public key: {}", e))?;
 
-    let qe_report_signature = Signature::from_slice(&quote.signature.qe_report_signature)?;
+    let qe_report_signature = Signature::from_slice(quote.signature.qe_report_signature)?;
     pck_pkey
         .verify(
             quote.signature.qe_report_body.as_bytes(),
@@ -297,7 +297,7 @@ fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
 
     let mut key = [0u8; 65];
     key[0] = 4;
-    key[1..].copy_from_slice(&quote.signature.attestation_pub_key);
+    key[1..].copy_from_slice(quote.signature.attestation_pub_key);
 
     if quote.header.attestation_key_type.get() != AttestationKeyType::Ecdsa256P256 as u16 {
         bail!("unsupported attestation key type");
@@ -312,7 +312,7 @@ fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
     data.extend_from_slice(header_bytes);
     data.extend_from_slice(body_bytes);
 
-    let sig = Signature::from_slice(&quote.signature.isv_signature)?;
+    let sig = Signature::from_slice(quote.signature.isv_signature)?;
     attest_key
         .verify(&data, &sig)
         .context("failed to verify quote signature")?;

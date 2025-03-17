@@ -1,4 +1,4 @@
-use anyhow::{Context, anyhow, bail};
+use anyhow::{anyhow, bail};
 use sha2::{Digest, Sha256};
 use zerocopy::little_endian;
 
@@ -18,16 +18,16 @@ use super::{CertificationKeyType, PckCertChainData};
 #[derive(Debug)]
 pub struct QuoteSignatureData<'a> {
     /// Signature of the report header + report by the attestation key.
-    pub isv_signature: [u8; 64],
+    pub isv_signature: &'a [u8],
 
     /// The public key used to generate the isv_signature.
-    pub attestation_pub_key: [u8; 64],
+    pub attestation_pub_key: &'a [u8],
 
     /// Report of the quoting enclave.
     pub qe_report_body: EnclaveReportBody,
 
     /// Signature of the quoting enclave report using the PCK cert key.
-    pub qe_report_signature: [u8; 64],
+    pub qe_report_signature: &'a [u8],
 
     /// Auth data for the quote
     pub auth_data: &'a [u8],
@@ -54,15 +54,14 @@ impl<'a> QuoteSignatureData<'a> {
     }
 
     fn read_v3_signature(bytes: &mut &'a [u8]) -> anyhow::Result<Self> {
-        let signature_header: EcdsaSignatureHeader = utils::read_from_bytes(bytes)
-            .ok_or_else(|| anyhow!("underflow reading signature header"))?;
+        let isv_signature = utils::read_bytes(bytes, 64);
 
-        let qe_report_body =
-            utils::read_array::<{ std::mem::size_of::<EnclaveReportBody>() }>(bytes);
-        let qe_report_body = EnclaveReportBody::try_from(qe_report_body)?;
+        let attestation_pub_key = utils::read_bytes(bytes, 64);
 
-        let qe_report_signature = utils::read_from_bytes::<[u8; 64]>(bytes)
-            .ok_or_else(|| anyhow!("underflow reading qe report signature"))?;
+        let qe_report_body = utils::read_from_bytes::<EnclaveReportBody>(bytes)
+            .ok_or_else(|| anyhow!("underflow reading enclave report body"))?;
+
+        let qe_report_signature = utils::read_bytes(bytes, 64);
 
         let auth_data_size = utils::read_from_bytes::<little_endian::U16>(bytes)
             .ok_or_else(|| anyhow!("Failed to read auth data size"))?
@@ -74,11 +73,10 @@ impl<'a> QuoteSignatureData<'a> {
 
         let auth_data = utils::read_bytes(bytes, auth_data_size as usize);
         let cert_data = QuoteCertData::read(bytes)?;
-        println!("Cert data: {:?}", bytes.len());
 
         Ok(QuoteSignatureData {
-            isv_signature: signature_header.isv_signature,
-            attestation_pub_key: signature_header.attestation_pub_key,
+            isv_signature,
+            attestation_pub_key,
             qe_report_body,
             qe_report_signature,
             auth_data,
@@ -87,11 +85,9 @@ impl<'a> QuoteSignatureData<'a> {
     }
 
     fn read_v4_signature(bytes: &mut &'a [u8]) -> anyhow::Result<Self> {
-        let isv_signature = utils::read_from_bytes::<[u8; 64]>(bytes)
-            .ok_or_else(|| anyhow!("underflow reading isv signature"))?;
+        let isv_signature = utils::read_bytes(bytes, 64);
 
-        let attestation_pub_key = utils::read_from_bytes::<[u8; 64]>(bytes)
-            .ok_or_else(|| anyhow!("underflow reading attestation pub key"))?;
+        let attestation_pub_key = utils::read_bytes(bytes, 64);
 
         let mut cert_data_struct = QuoteCertData::read(bytes)?;
 
@@ -101,28 +97,27 @@ impl<'a> QuoteSignatureData<'a> {
             ));
         }
 
-        // Create a mutable reference to parse the cert_data
-
         // Parse the QE report
-        let qe_report_bytes =
-            utils::read_array::<{ std::mem::size_of::<EnclaveReportBody>() }>(&mut cert_data_struct.cert_data);
-
         let qe_report_body =
-            EnclaveReportBody::try_from(qe_report_bytes).context("Failed to parse QE report")?;
+            utils::read_from_bytes::<EnclaveReportBody>(&mut cert_data_struct.cert_data)
+                .ok_or_else(|| anyhow!("underflow reading enclave report body"))?;
 
         // Parse the QE report signature
-        let qe_report_signature = utils::read_from_bytes::<[u8; 64]>(&mut cert_data_struct.cert_data)
-            .ok_or_else(|| anyhow!("underflow reading qe report signature"))?;
+        let qe_report_signature = utils::read_bytes(&mut cert_data_struct.cert_data, 64);
 
         // Read auth data size and auth data
-        let auth_data_size = utils::read_from_bytes::<little_endian::U16>(&mut cert_data_struct.cert_data)
-            .ok_or_else(|| anyhow!("Failed to read auth data size"))?;
+        let auth_data_size =
+            utils::read_from_bytes::<little_endian::U16>(&mut cert_data_struct.cert_data)
+                .ok_or_else(|| anyhow!("Failed to read auth data size"))?;
 
         if cert_data_struct.cert_data.len() < auth_data_size.get() as usize {
             return Err(anyhow!("buffer underflow"));
         }
 
-        let qe_auth_data = utils::read_bytes(&mut cert_data_struct.cert_data, auth_data_size.get() as usize);
+        let qe_auth_data = utils::read_bytes(
+            &mut cert_data_struct.cert_data,
+            auth_data_size.get() as usize,
+        );
         let cert_data = QuoteCertData::read(&mut cert_data_struct.cert_data)?;
 
         Ok(QuoteSignatureData {
@@ -146,7 +141,7 @@ impl<'a> QuoteSignatureData<'a> {
     pub fn verify_qe_report(&self) -> anyhow::Result<()> {
         let mut hasher = Sha256::new();
 
-        hasher.update(&self.attestation_pub_key[..]);
+        hasher.update(self.attestation_pub_key);
         hasher.update(self.auth_data);
         let digest = hasher.finalize();
         assert_eq!(digest.len(), 32);

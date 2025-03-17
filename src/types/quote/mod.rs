@@ -41,14 +41,13 @@ impl<'a> Quote<'a> {
         }
 
         // Read the quote header
-        let quote_header = utils::read_array::<{ std::mem::size_of::<QuoteHeader>() }>(bytes);
-        let quote_header = QuoteHeader::try_from(quote_header)?;
+        let quote_header = utils::read_from_bytes::<QuoteHeader>(bytes)
+            .ok_or_else(|| anyhow!("underflow reading quote header"))?;
 
         // Read the quote body and signature
         if quote_header.tee_type == SGX_TEE_TYPE {
-            let quote_body =
-                utils::read_array::<{ std::mem::size_of::<EnclaveReportBody>() }>(bytes);
-            let quote_body = EnclaveReportBody::try_from(quote_body)?;
+            let quote_body = utils::read_from_bytes::<EnclaveReportBody>(bytes)
+                .ok_or_else(|| anyhow!("underflow reading enclave report body"))?;
             let quote_signature = QuoteSignatureData::read(bytes, quote_header.version.get())?;
             Ok(Quote {
                 header: quote_header,
@@ -56,8 +55,8 @@ impl<'a> Quote<'a> {
                 signature: quote_signature,
             })
         } else if quote_header.tee_type == TDX_TEE_TYPE {
-            let quote_body = utils::read_array::<{ std::mem::size_of::<Td10ReportBody>() }>(bytes);
-            let quote_body = Td10ReportBody::try_from(quote_body)?;
+            let quote_body = utils::read_from_bytes::<Td10ReportBody>(bytes)
+                .ok_or_else(|| anyhow!("underflow reading td10 report body"))?;
             let quote_signature = QuoteSignatureData::read(bytes, quote_header.version.get())?;
 
             return Ok(Quote {
