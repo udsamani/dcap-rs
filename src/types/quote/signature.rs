@@ -74,6 +74,7 @@ impl<'a> QuoteSignatureData<'a> {
 
         let auth_data = utils::read_bytes(bytes, auth_data_size as usize);
         let cert_data = QuoteCertData::read(bytes)?;
+        println!("Cert data: {:?}", bytes.len());
 
         Ok(QuoteSignatureData {
             isv_signature: signature_header.isv_signature,
@@ -86,8 +87,11 @@ impl<'a> QuoteSignatureData<'a> {
     }
 
     fn read_v4_signature(bytes: &mut &'a [u8]) -> anyhow::Result<Self> {
-        let signature_header: EcdsaSignatureHeader = utils::read_from_bytes(bytes)
-            .ok_or_else(|| anyhow!("underflow reading signature header"))?;
+        let isv_signature = utils::read_from_bytes::<[u8; 64]>(bytes)
+            .ok_or_else(|| anyhow!("underflow reading isv signature"))?;
+
+        let attestation_pub_key = utils::read_from_bytes::<[u8; 64]>(bytes)
+            .ok_or_else(|| anyhow!("underflow reading attestation pub key"))?;
 
         let mut cert_data_struct = QuoteCertData::read(bytes)?;
 
@@ -122,8 +126,8 @@ impl<'a> QuoteSignatureData<'a> {
         let cert_data = QuoteCertData::read(&mut cert_data_struct.cert_data)?;
 
         Ok(QuoteSignatureData {
-            isv_signature: signature_header.isv_signature,
-            attestation_pub_key: signature_header.attestation_pub_key,
+            isv_signature,
+            attestation_pub_key,
             qe_report_body,
             qe_report_signature,
             auth_data: qe_auth_data,
