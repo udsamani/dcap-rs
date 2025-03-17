@@ -32,6 +32,7 @@ pub fn verify_dcap_quote(
     collateral: Collateral,
     quote: Quote,
 ) -> anyhow::Result<VerifiedOutput> {
+
     // 1. Verify the integrity of the signature chain from the Quote to the Intel-issued PCK
     //    certificate, and that no keys in the chain have been revoked.
     let tcb_info = verify_integrity(current_time, &collateral, &quote)?;

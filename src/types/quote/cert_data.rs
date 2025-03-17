@@ -61,10 +61,12 @@ impl<'a> QuoteCertData<'a> {
             })
             .ok_or_else(|| anyhow!("PCK Certificate does not contain a SGX Extension"))?;
 
+        let pck_extension = SgxPckExtension::from_der(pck_extension.extn_value.as_bytes())
+            .context("PCK Extension")?;
+
         Ok(PckCertChainData {
-            pck_cert_chain: pck_cert_chain.clone(),
-            pck_extension: SgxPckExtension::from_der(pck_extension.extn_value.as_bytes())
-                .context("PCK Extension")?,
+            pck_cert_chain,
+            pck_extension,
         })
     }
 }
