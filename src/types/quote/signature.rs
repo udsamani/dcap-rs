@@ -89,7 +89,7 @@ impl<'a> QuoteSignatureData<'a> {
         let signature_header: EcdsaSignatureHeader = utils::read_from_bytes(bytes)
             .ok_or_else(|| anyhow!("underflow reading signature header"))?;
 
-        let cert_data_struct = QuoteCertData::read(bytes)?;
+        let mut cert_data_struct = QuoteCertData::read(bytes)?;
 
         if cert_data_struct.cert_key_type.get() != CertificationKeyType::EcdsaSigAuxData as u16 {
             return Err(anyhow!(
@@ -98,29 +98,28 @@ impl<'a> QuoteSignatureData<'a> {
         }
 
         // Create a mutable reference to parse the cert_data
-        let mut data = cert_data_struct.cert_data;
 
         // Parse the QE report
         let qe_report_bytes =
-            utils::read_array::<{ std::mem::size_of::<EnclaveReportBody>() }>(&mut data);
+            utils::read_array::<{ std::mem::size_of::<EnclaveReportBody>() }>(&mut cert_data_struct.cert_data);
 
         let qe_report_body =
             EnclaveReportBody::try_from(qe_report_bytes).context("Failed to parse QE report")?;
 
         // Parse the QE report signature
-        let qe_report_signature = utils::read_from_bytes::<[u8; 64]>(&mut data)
+        let qe_report_signature = utils::read_from_bytes::<[u8; 64]>(&mut cert_data_struct.cert_data)
             .ok_or_else(|| anyhow!("underflow reading qe report signature"))?;
 
         // Read auth data size and auth data
-        let auth_data_size = utils::read_from_bytes::<little_endian::U16>(&mut data)
+        let auth_data_size = utils::read_from_bytes::<little_endian::U16>(&mut cert_data_struct.cert_data)
             .ok_or_else(|| anyhow!("Failed to read auth data size"))?;
 
-        if data.len() < auth_data_size.get() as usize {
+        if cert_data_struct.cert_data.len() < auth_data_size.get() as usize {
             return Err(anyhow!("buffer underflow"));
         }
 
-        let qe_auth_data = utils::read_bytes(&mut data, auth_data_size.get() as usize);
-        let cert_data = QuoteCertData::read(&mut data)?;
+        let qe_auth_data = utils::read_bytes(&mut cert_data_struct.cert_data, auth_data_size.get() as usize);
+        let cert_data = QuoteCertData::read(&mut cert_data_struct.cert_data)?;
 
         Ok(QuoteSignatureData {
             isv_signature: signature_header.isv_signature,
