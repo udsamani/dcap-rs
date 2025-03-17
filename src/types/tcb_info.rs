@@ -25,8 +25,11 @@ impl TryFrom<String> for TcbInfoAndSignature {
 }
 
 impl TcbInfoAndSignature {
-    pub fn as_tcb_info_and_verify(&self, current_time: SystemTime, public_key: VerifyingKey) -> anyhow::Result<TcbInfo> {
-
+    pub fn as_tcb_info_and_verify(
+        &self,
+        current_time: SystemTime,
+        public_key: VerifyingKey,
+    ) -> anyhow::Result<TcbInfo> {
         let tcb_info: TcbInfo =
             serde_json::from_str(self.tcb_info_raw.get()).context("tcb info")?;
 

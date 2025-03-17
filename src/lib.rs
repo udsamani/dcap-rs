@@ -32,17 +32,17 @@ pub fn verify_dcap_quote(
     collateral: Collateral,
     quote: Quote,
 ) -> anyhow::Result<VerifiedOutput> {
-
     // 1. Verify the integrity of the signature chain from the Quote to the Intel-issued PCK
     //    certificate, and that no keys in the chain have been revoked.
     let tcb_info = verify_integrity(current_time, &collateral, &quote)?;
 
     // 2. Verify the Quoting Enclave source and all signatures in the Quote.
     let qe_tcb_status = verify_quote(current_time, &collateral, &quote)?;
-
     // 3. Verify the status of Intel SGX TCB described in the chain.
+    let pck_cert_chain = quote.signature.get_pck_cert_chain()?;
+    let pck_extension = &pck_cert_chain.pck_extension;
     let (mut tcb_status, advisory_ids) =
-        verify_tcb_status(&tcb_info, &quote.signature.pck_extension)?;
+        verify_tcb_status(&tcb_info, &pck_cert_chain.pck_extension)?;
 
     let advisory_ids = if advisory_ids.is_empty() {
         None
@@ -64,7 +64,7 @@ pub fn verify_dcap_quote(
         quote_version: quote.header.version.get(),
         tee_type: quote.header.tee_type,
         tcb_status,
-        fmspc: quote.signature.pck_extension.fmspc,
+        fmspc: pck_extension.fmspc,
         quote_body: quote.body,
         advisory_ids,
     })
@@ -81,8 +81,9 @@ fn verify_integrity(
     {
         bail!("expired tcb info issuer chain");
     }
+    let pck_cert_chain_data = quote.signature.get_pck_cert_chain()?;
 
-    if !quote.signature.pck_cert_chain.valid_at(current_time) {
+    if !pck_cert_chain_data.pck_cert_chain.valid_at(current_time) {
         bail!("expired pck cert chain");
     }
 
@@ -113,7 +114,7 @@ fn verify_integrity(
     // Build intermediaries from the PCK cert chain, EXCLUDING the leaf certificate
     let mut intermediaries = std::collections::BTreeMap::new();
     // Skip the first certificate (leaf) and only use intermediates and root
-    for cert in quote.signature.pck_cert_chain.iter().skip(1) {
+    for cert in pck_cert_chain_data.pck_cert_chain.iter().skip(1) {
         let subject = cert.tbs_certificate.subject.to_string();
         let pk = cert
             .try_into()
@@ -141,9 +142,9 @@ fn verify_integrity(
     }
 
     // Verify PCK Cert Chain and add it to the store.
-    let pck_cert_chain = quote.signature.pck_cert_chain.clone();
+    let pck_cert_chain_data = quote.signature.get_pck_cert_chain()?;
     trust_store
-        .verify_chain_leaf(&pck_cert_chain)
+        .verify_chain_leaf(&pck_cert_chain_data.pck_cert_chain)
         .context("failed to verify pck crl issuer chain")?;
 
     // Verify TCB Info Issuer Chain
@@ -273,7 +274,8 @@ fn verify_quote_enclave_source(
 
 /// Verify the quote signatures.
 fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
-    let pck_pk_bytes = quote.signature.pck_cert_chain[0]
+    let pck_cert_chain_data = quote.signature.get_pck_cert_chain()?;
+    let pck_pk_bytes = pck_cert_chain_data.pck_cert_chain[0]
         .tbs_certificate
         .subject_public_key_info
         .subject_public_key
@@ -323,7 +325,6 @@ fn verify_tcb_status(
     tcb_info: &TcbInfo,
     pck_extension: &SgxPckExtension,
 ) -> anyhow::Result<(TcbStatus, Vec<String>)> {
-
     // Make sure the tcb_info matches the enclave's model/PCE version
     if pck_extension.fmspc != tcb_info.fmspc {
         return Err(anyhow::anyhow!(
