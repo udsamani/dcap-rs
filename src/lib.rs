@@ -169,11 +169,6 @@ fn verify_integrity(
         .as_tcb_info_and_verify(tcb_signer)
         .context("failed to verify tcb info signature")?;
 
-    // Verify the quote's pck signing certificate chain
-    let _pck_signer = trust_store
-        .verify_chain_leaf(&quote.signature.pck_cert_chain)
-        .context("failed to verify quote support pck signing certificate chain")?;
-
     // Verify the quote identity issuer chain
     let _qe_id_issuer = trust_store
         .verify_chain_leaf(&collateral.tcb_info_and_qe_identity_issuer_chain)
