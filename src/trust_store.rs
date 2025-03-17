@@ -69,7 +69,6 @@ impl TrustStore {
         verify_signature: bool,
         intermediaries: Option<&BTreeMap<String, TrustedIdentity>>,
     ) -> anyhow::Result<()> {
-
         // Verify signature if requested
         if verify_signature {
             let issuer = crl.tbs_cert_list.issuer.to_string();

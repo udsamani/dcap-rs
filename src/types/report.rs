@@ -88,7 +88,7 @@ impl TryFrom<[u8; std::mem::size_of::<EnclaveReportBody>()]> for EnclaveReportBo
     }
 }
 
-/// TdxReportBody is the body of the TDX Quote
+/// Td10ReportBody is the body of the TDX 1.0 Quotes
 #[derive(Debug, zerocopy::FromBytes, zerocopy::FromZeroes, zerocopy::AsBytes)]
 #[repr(C)]
 pub struct Td10ReportBody {

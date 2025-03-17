@@ -7,7 +7,7 @@ use std::time::SystemTime;
 use anyhow::{Context, anyhow, bail};
 use chrono::{DateTime, Utc};
 use p256::ecdsa::{VerifyingKey, signature::Verifier};
-use trust_store::TrustStore;
+use trust_store::{TrustStore, TrustedIdentity};
 use types::{
     VerifiedOutput,
     collateral::Collateral,
@@ -109,13 +109,35 @@ fn verify_integrity(
         .add_crl(collateral.root_ca_crl.clone(), true, None)
         .context("failed to verify root ca crl")?;
 
-    trust_store
-        .add_crl(collateral.platform_ca_crl.clone(), false, None)
-        .context("failed to verify platform ca crl")?;
+    // Build intermediaries from the PCK cert chain, EXCLUDING the leaf certificate
+    let mut intermediaries = std::collections::BTreeMap::new();
+    // Skip the first certificate (leaf) and only use intermediates and root
+    for cert in quote.signature.pck_cert_chain.iter().skip(1) {
+        let subject = cert.tbs_certificate.subject.to_string();
+        let pk = cert
+            .try_into()
+            .map_err(|e| anyhow::anyhow!("failed to decode key from certificate: {}", e))?;
 
-    trust_store
-        .add_crl(collateral.processor_ca_crl.clone(), false, None)
-        .context("failed to verify processor ca crl")?;
+        intermediaries.insert(
+            subject,
+            TrustedIdentity {
+                cert: cert.clone(), //TODO: remove clone eventually, or else may hit solana limits
+                pk,
+            },
+        );
+    }
+
+    if let Some(platform_ca_crl) = &collateral.platform_ca_crl {
+        trust_store
+            .add_crl(platform_ca_crl.clone(), true, Some(&intermediaries))
+            .context("failed to verify platform ca crl")?;
+    }
+
+    if let Some(processor_ca_crl) = &collateral.processor_ca_crl {
+        trust_store
+            .add_crl(processor_ca_crl.clone(), true, Some(&intermediaries))
+            .context("failed to verify processor ca crl")?;
+    }
 
     // Verify PCK Cert Chain and add it to the store.
     let pck_cert_chain = quote.signature.pck_cert_chain.clone();
@@ -380,14 +402,11 @@ mod tests {
         let platform_ca_crl = include_bytes!("../data/pck_platform_crl.der");
         let platform_ca_crl = CertificateList::from_der(platform_ca_crl).unwrap();
 
-        let processor_ca_crl = include_bytes!("../data/pck_processor_crl.der");
-        let processor_ca_crl = CertificateList::from_der(processor_ca_crl).unwrap();
-
         let collateral = Collateral {
             tcb_info_and_qe_identity_issuer_chain,
             root_ca_crl,
-            platform_ca_crl,
-            processor_ca_crl,
+            platform_ca_crl: Some(platform_ca_crl),
+            processor_ca_crl: None,
             tcb_info,
             qe_identity,
         };

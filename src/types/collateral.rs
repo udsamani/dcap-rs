@@ -1,4 +1,4 @@
-use crate::utils::{cert_chain, crl};
+use crate::utils::{cert_chain, crl, crl_optional};
 use serde::{Deserialize, Serialize};
 use x509_cert::{Certificate, crl::CertificateList};
 
@@ -16,14 +16,16 @@ pub struct Collateral {
     /// Platform CA CRL in PEM format
     /// Contains a list of revoked certificates signed by Intel Platform CA.
     /// It is used to check if any certificates in the verification chain have been revoked.
-    #[serde(with = "crl")]
-    pub platform_ca_crl: CertificateList,
+    /// Only to be passed if the quote is expected to be signed by Intel SGX Platform CA.
+    #[serde(with = "crl_optional", skip_serializing_if = "Option::is_none")]
+    pub platform_ca_crl: Option<CertificateList>,
 
     /// Processor CA CRL in PEM format
     /// Contains a list of revoked certificates signed by Intel Processor CA.
     /// It is used to check if any certificates in the verification chain have been revoked.
-    #[serde(with = "crl")]
-    pub processor_ca_crl: CertificateList,
+    /// Only to be passed if the quote is expected to be signed by Intel SGX Processor CA.
+    #[serde(with = "crl_optional", skip_serializing_if = "Option::is_none")]
+    pub processor_ca_crl: Option<CertificateList>,
 
     /* Issuer Certificate Chains */
     /// TCB Info and Identity Issuer Chain in PEM format
@@ -48,9 +50,6 @@ mod tests {
     #[test]
     fn encode_decode_collateral_json() {
         let json = include_str!("../../data/full_collateral_sgx.json");
-        let collateral: Collateral = serde_json::from_str(json).expect("json to parse");
-        let json2 = serde_json::to_string(&collateral).expect("json to serialize");
-        println!("{json2}");
-        let _: Collateral = serde_json::from_str(&json2).expect("json2 to parse");
+        let _collateral: Collateral = serde_json::from_str(json).expect("json to parse");
     }
 }

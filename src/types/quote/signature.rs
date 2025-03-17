@@ -42,7 +42,7 @@ pub struct QuoteSignatureData<'a> {
 }
 
 impl<'a> QuoteSignatureData<'a> {
-    pub fn read(bytes: &mut &'a[u8], version: u16) -> anyhow::Result<Self> {
+    pub fn read(bytes: &mut &'a [u8], version: u16) -> anyhow::Result<Self> {
         let signature_len = utils::read_from_bytes::<little_endian::U32>(bytes)
             .ok_or_else(|| anyhow!("underflow reading signature length"))?
             .get();
@@ -58,7 +58,7 @@ impl<'a> QuoteSignatureData<'a> {
         }
     }
 
-    fn read_v3_signature(bytes: &mut &'a[u8]) -> anyhow::Result<Self> {
+    fn read_v3_signature(bytes: &mut &'a [u8]) -> anyhow::Result<Self> {
         let signature_header: EcdsaSignatureHeader = utils::read_from_bytes(bytes)
             .ok_or_else(|| anyhow!("underflow reading signature header"))?;
 
@@ -95,7 +95,7 @@ impl<'a> QuoteSignatureData<'a> {
         })
     }
 
-    fn read_v4_signature(bytes: &mut &'a[u8]) -> anyhow::Result<Self> {
+    fn read_v4_signature(bytes: &mut &'a [u8]) -> anyhow::Result<Self> {
         let signature_header: EcdsaSignatureHeader = utils::read_from_bytes(bytes)
             .ok_or_else(|| anyhow!("underflow reading signature header"))?;
 
@@ -164,8 +164,8 @@ impl<'a> QuoteSignatureData<'a> {
             })
             .ok_or_else(|| anyhow!("PCK Certificate does not contain a SGX Extension"))?;
 
-        let pck_extension = SgxPckExtension::from_der(pck_extension.extn_value.as_bytes()).context("PCK Extension")?;
-
+        let pck_extension = SgxPckExtension::from_der(pck_extension.extn_value.as_bytes())
+            .context("PCK Extension")?;
 
         Ok(QuoteSignatureData {
             isv_signature: Signature::from_slice(&signature_header.isv_signature)?,
