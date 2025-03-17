@@ -6,7 +6,7 @@ use std::time::SystemTime;
 
 use anyhow::{Context, anyhow, bail};
 use chrono::{DateTime, Utc};
-use p256::ecdsa::{VerifyingKey, signature::Verifier};
+use p256::ecdsa::{Signature, VerifyingKey, signature::Verifier};
 use trust_store::{TrustStore, TrustedIdentity};
 use types::{
     VerifiedOutput,
@@ -285,10 +285,11 @@ fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
     let pck_pkey = VerifyingKey::from_sec1_bytes(pck_pk_bytes)
         .map_err(|e| anyhow!("failed to parse pck public key: {}", e))?;
 
+    let qe_report_signature = Signature::from_slice(&quote.signature.qe_report_signature)?;
     pck_pkey
         .verify(
             quote.signature.qe_report_body.as_bytes(),
-            &quote.signature.qe_report_signature,
+            &qe_report_signature,
         )
         .map_err(|e| anyhow!("failed to verify qe report signature. {e}"))?;
 
@@ -311,7 +312,7 @@ fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
     data.extend_from_slice(header_bytes);
     data.extend_from_slice(body_bytes);
 
-    let sig = quote.signature.isv_signature;
+    let sig = Signature::from_slice(&quote.signature.isv_signature)?;
     attest_key
         .verify(&data, &sig)
         .context("failed to verify quote signature")?;

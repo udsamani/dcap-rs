@@ -1,5 +1,4 @@
 use anyhow::{Context, anyhow, bail};
-use p256::ecdsa::Signature;
 use sha2::{Digest, Sha256};
 use zerocopy::little_endian;
 
@@ -19,7 +18,7 @@ use super::{CertificationKeyType, PckCertChainData};
 #[derive(Debug)]
 pub struct QuoteSignatureData<'a> {
     /// Signature of the report header + report by the attestation key.
-    pub isv_signature: Signature,
+    pub isv_signature: [u8; 64],
 
     /// The public key used to generate the isv_signature.
     pub attestation_pub_key: [u8; 64],
@@ -28,7 +27,7 @@ pub struct QuoteSignatureData<'a> {
     pub qe_report_body: EnclaveReportBody,
 
     /// Signature of the quoting enclave report using the PCK cert key.
-    pub qe_report_signature: Signature,
+    pub qe_report_signature: [u8; 64],
 
     /// Auth data for the quote
     pub auth_data: &'a [u8],
@@ -62,9 +61,8 @@ impl<'a> QuoteSignatureData<'a> {
             utils::read_array::<{ std::mem::size_of::<EnclaveReportBody>() }>(bytes);
         let qe_report_body = EnclaveReportBody::try_from(qe_report_body)?;
 
-        let qe_report_signature = utils::read_bytes(bytes, 64);
-        let qe_report_signature =
-            Signature::from_slice(qe_report_signature).context("QE Report Signature")?;
+        let qe_report_signature = utils::read_from_bytes::<[u8; 64]>(bytes)
+            .ok_or_else(|| anyhow!("underflow reading qe report signature"))?;
 
         let auth_data_size = utils::read_from_bytes::<little_endian::U16>(bytes)
             .ok_or_else(|| anyhow!("Failed to read auth data size"))?
@@ -76,10 +74,9 @@ impl<'a> QuoteSignatureData<'a> {
 
         let auth_data = utils::read_bytes(bytes, auth_data_size as usize);
         let cert_data = QuoteCertData::read(bytes)?;
-        let isv_signature = Signature::from_slice(&signature_header.isv_signature)?;
 
         Ok(QuoteSignatureData {
-            isv_signature,
+            isv_signature: signature_header.isv_signature,
             attestation_pub_key: signature_header.attestation_pub_key,
             qe_report_body,
             qe_report_signature,
@@ -111,9 +108,8 @@ impl<'a> QuoteSignatureData<'a> {
             EnclaveReportBody::try_from(qe_report_bytes).context("Failed to parse QE report")?;
 
         // Parse the QE report signature
-        let qe_report_sig_bytes = utils::read_bytes(&mut data, 64);
-        let qe_report_signature = Signature::from_slice(qe_report_sig_bytes)
-            .context("Failed to parse QE report signature")?;
+        let qe_report_signature = utils::read_from_bytes::<[u8; 64]>(&mut data)
+            .ok_or_else(|| anyhow!("underflow reading qe report signature"))?;
 
         // Read auth data size and auth data
         let auth_data_size = utils::read_from_bytes::<little_endian::U16>(&mut data)
@@ -127,7 +123,7 @@ impl<'a> QuoteSignatureData<'a> {
         let cert_data = QuoteCertData::read(&mut data)?;
 
         Ok(QuoteSignatureData {
-            isv_signature: Signature::from_slice(&signature_header.isv_signature)?,
+            isv_signature: signature_header.isv_signature,
             attestation_pub_key: signature_header.attestation_pub_key,
             qe_report_body,
             qe_report_signature,
