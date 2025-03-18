@@ -129,17 +129,9 @@ fn verify_integrity(
         );
     }
 
-    if let Some(platform_ca_crl) = &collateral.platform_ca_crl {
-        trust_store
-            .add_crl(platform_ca_crl.clone(), true, Some(&intermediaries))
-            .context("failed to verify platform ca crl")?;
-    }
-
-    if let Some(processor_ca_crl) = &collateral.processor_ca_crl {
-        trust_store
-            .add_crl(processor_ca_crl.clone(), true, Some(&intermediaries))
-            .context("failed to verify processor ca crl")?;
-    }
+    trust_store
+        .add_crl(collateral.pck_crl.clone(), true, Some(&intermediaries))
+        .context("failed to verify pck crl")?;
 
     // Verify PCK Cert Chain and add it to the store.
     let pck_cert_chain_data = quote.signature.get_pck_cert_chain()?;
@@ -397,8 +389,7 @@ mod tests {
         let collateral = Collateral {
             tcb_info_and_qe_identity_issuer_chain,
             root_ca_crl,
-            platform_ca_crl: Some(platform_ca_crl),
-            processor_ca_crl: None,
+            pck_crl: platform_ca_crl,
             tcb_info,
             qe_identity,
         };

@@ -1,4 +1,4 @@
-use crate::utils::{cert_chain, crl, crl_optional};
+use crate::utils::{cert_chain, crl};
 use serde::{Deserialize, Serialize};
 use x509_cert::{Certificate, crl::CertificateList};
 
@@ -17,15 +17,8 @@ pub struct Collateral {
     /// Contains a list of revoked certificates signed by Intel Platform CA.
     /// It is used to check if any certificates in the verification chain have been revoked.
     /// Only to be passed if the quote is expected to be signed by Intel SGX Platform CA.
-    #[serde(with = "crl_optional", skip_serializing_if = "Option::is_none")]
-    pub platform_ca_crl: Option<CertificateList>,
-
-    /// Processor CA CRL in PEM format
-    /// Contains a list of revoked certificates signed by Intel Processor CA.
-    /// It is used to check if any certificates in the verification chain have been revoked.
-    /// Only to be passed if the quote is expected to be signed by Intel SGX Processor CA.
-    #[serde(with = "crl_optional", skip_serializing_if = "Option::is_none")]
-    pub processor_ca_crl: Option<CertificateList>,
+    #[serde(with = "crl")]
+    pub pck_crl: CertificateList,
 
     /* Issuer Certificate Chains */
     /// TCB Info and Identity Issuer Chain in PEM format
