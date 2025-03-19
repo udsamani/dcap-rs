@@ -266,24 +266,24 @@ pub fn verify_quote_enclave_source(
 
 /// Verify the quote signatures.
 pub fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
-    let pck_cert_chain_data = quote.signature.get_pck_cert_chain()?;
-    let pck_pk_bytes = pck_cert_chain_data.pck_cert_chain[0]
-        .tbs_certificate
-        .subject_public_key_info
-        .subject_public_key
-        .as_bytes()
-        .context("missing pck public key")?;
+    // let pck_cert_chain_data = quote.signature.get_pck_cert_chain()?;
+    // let pck_pk_bytes = pck_cert_chain_data.pck_cert_chain[0]
+    //     .tbs_certificate
+    //     .subject_public_key_info
+    //     .subject_public_key
+    //     .as_bytes()
+    //     .context("missing pck public key")?;
 
-    let pck_pkey = VerifyingKey::from_sec1_bytes(pck_pk_bytes)
-        .map_err(|e| anyhow!("failed to parse pck public key: {}", e))?;
+    // let pck_pkey = VerifyingKey::from_sec1_bytes(pck_pk_bytes)
+    //     .map_err(|e| anyhow!("failed to parse pck public key: {}", e))?;
 
-    let qe_report_signature = Signature::from_slice(quote.signature.qe_report_signature)?;
-    pck_pkey
-        .verify(
-            quote.signature.qe_report_body.as_bytes(),
-            &qe_report_signature,
-        )
-        .map_err(|e| anyhow!("failed to verify qe report signature. {e}"))?;
+    // let qe_report_signature = Signature::from_slice(quote.signature.qe_report_signature)?;
+    // pck_pkey
+    //     .verify(
+    //         quote.signature.qe_report_body.as_bytes(),
+    //         &qe_report_signature,
+    //     )
+    //     .map_err(|e| anyhow!("failed to verify qe report signature. {e}"))?;
 
     quote.signature.verify_qe_report()?;
 
@@ -295,19 +295,19 @@ pub fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
         bail!("unsupported attestation key type");
     }
 
-    // let attest_key = VerifyingKey::from_sec1_bytes(&key)
-    //     .map_err(|e| anyhow!("failed to parse attest key: {e}"))?;
+    let attest_key = VerifyingKey::from_sec1_bytes(&key)
+        .map_err(|e| anyhow!("failed to parse attest key: {e}"))?;
 
-    // let header_bytes = quote.header.as_bytes();
-    // let body_bytes = quote.body.as_bytes();
-    // let mut data = Vec::with_capacity(header_bytes.len() + body_bytes.len());
-    // data.extend_from_slice(header_bytes);
-    // data.extend_from_slice(body_bytes);
+    let header_bytes = quote.header.as_bytes();
+    let body_bytes = quote.body.as_bytes();
+    let mut data = Vec::with_capacity(header_bytes.len() + body_bytes.len());
+    data.extend_from_slice(header_bytes);
+    data.extend_from_slice(body_bytes);
 
-    // let sig = Signature::from_slice(quote.signature.isv_signature)?;
-    // attest_key
-    //     .verify(&data, &sig)
-    //     .context("failed to verify quote signature")?;
+    let sig = Signature::from_slice(quote.signature.isv_signature)?;
+    attest_key
+        .verify(&data, &sig)
+        .context("failed to verify quote signature")?;
 
     Ok(())
 }
