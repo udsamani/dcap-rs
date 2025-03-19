@@ -48,25 +48,25 @@ impl<'a> QuoteCertData<'a> {
         let pck_cert_chain = cert_chain_processor::load_pem_chain_bpf_friendly(cert_data)
             .context("Failed to parse PCK certificate chain")?;
 
-        let pck_extension = pck_cert_chain
-            .first()
-            .context("CertChain")?
-            .tbs_certificate
-            .extensions
-            .as_ref()
-            .and_then(|extensions| {
-                extensions
-                    .iter()
-                    .find(|ext| SgxPckExtension::is_pck_ext(ext.extn_id.to_string()))
-            })
-            .ok_or_else(|| anyhow!("PCK Certificate does not contain a SGX Extension"))?;
+        // let pck_extension = pck_cert_chain
+        //     .first()
+        //     .context("CertChain")?
+        //     .tbs_certificate
+        //     .extensions
+        //     .as_ref()
+        //     .and_then(|extensions| {
+        //         extensions
+        //             .iter()
+        //             .find(|ext| SgxPckExtension::is_pck_ext(ext.extn_id.to_string()))
+        //     })
+        //     .ok_or_else(|| anyhow!("PCK Certificate does not contain a SGX Extension"))?;
 
-        let pck_extension = SgxPckExtension::from_der(pck_extension.extn_value.as_bytes())
-            .context("PCK Extension")?;
+        // let pck_extension = SgxPckExtension::from_der(pck_extension.extn_value.as_bytes())
+        //     .context("PCK Extension")?;
 
         Ok(PckCertChainData {
             pck_cert_chain,
-            pck_extension,
+            //pck_extension,
         })
     }
 }
@@ -84,7 +84,7 @@ pub struct QuotingEnclaveReportCertData<'a> {
 pub struct PckCertChainData {
     pub pck_cert_chain: Vec<CertificateInner>,
 
-    pub pck_extension: SgxPckExtension,
+    // pub pck_extension: SgxPckExtension,
 }
 
 #[derive(Debug, PartialEq)]

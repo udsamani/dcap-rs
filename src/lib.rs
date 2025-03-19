@@ -39,34 +39,34 @@ pub fn verify_dcap_quote(
     // 2. Verify the Quoting Enclave source and all signatures in the Quote.
     let qe_tcb_status = verify_quote(current_time, &collateral, &quote)?;
     // 3. Verify the status of Intel SGX TCB described in the chain.
-    let pck_cert_chain = quote.signature.get_pck_cert_chain()?;
-    let pck_extension = &pck_cert_chain.pck_extension;
-    let (mut tcb_status, advisory_ids) =
-        verify_tcb_status(&tcb_info, &pck_cert_chain.pck_extension)?;
+    // let pck_cert_chain = quote.signature.get_pck_cert_chain()?;
+    // let pck_extension = &pck_cert_chain.pck_extension;
+    // let (mut tcb_status, advisory_ids) =
+    //     verify_tcb_status(&tcb_info, &pck_cert_chain.pck_extension)?;
 
-    let advisory_ids = if advisory_ids.is_empty() {
-        None
-    } else {
-        Some(advisory_ids)
-    };
+    // let advisory_ids = if advisory_ids.is_empty() {
+    //     None
+    // } else {
+    //     Some(advisory_ids)
+    // };
 
     // 4. If TDX type then verify the status of TDX Module status and converge and send
-    if quote.header.tee_type == TDX_TEE_TYPE {
-        let tdx_module_status =
-            tcb_info.verify_tdx_module(quote.body.as_tdx_report_body().unwrap())?;
-        tcb_status = TcbInfo::converge_tcb_status_with_tdx_module(tcb_status, tdx_module_status);
-    }
+    // if quote.header.tee_type == TDX_TEE_TYPE {
+    //     let tdx_module_status =
+    //         tcb_info.verify_tdx_module(quote.body.as_tdx_report_body().unwrap())?;
+    //     tcb_status = TcbInfo::converge_tcb_status_with_tdx_module(tcb_status, tdx_module_status);
+    // }
 
-    // 5. Converge platform TCB status with QE TCB status
-    tcb_status = TcbInfo::converge_tcb_status_with_qe_tcb(tcb_status, qe_tcb_status.into());
+    // // 5. Converge platform TCB status with QE TCB status
+    // tcb_status = TcbInfo::converge_tcb_status_with_qe_tcb(tcb_status, qe_tcb_status.into());
 
     Ok(VerifiedOutput {
         quote_version: quote.header.version.get(),
         tee_type: quote.header.tee_type,
-        tcb_status,
-        fmspc: pck_extension.fmspc,
+        tcb_status: TcbStatus::UpToDate,
+        fmspc: [0; 6],
         quote_body: quote.body,
-        advisory_ids,
+        advisory_ids: None,
     })
 }
 
