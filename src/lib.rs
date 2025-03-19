@@ -266,7 +266,7 @@ pub fn verify_quote_enclave_source(
 
 /// Verify the quote signatures.
 pub fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
-    // let pck_cert_chain_data = quote.signature.get_pck_cert_chain()?;
+    let pck_cert_chain_data = quote.signature.get_pck_cert_chain()?;
     // let pck_pk_bytes = pck_cert_chain_data.pck_cert_chain[0]
     //     .tbs_certificate
     //     .subject_public_key_info
