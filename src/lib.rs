@@ -266,7 +266,7 @@ pub fn verify_quote_enclave_source(
 
 /// Verify the quote signatures.
 pub fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
-    let pck_cert_chain_data = quote.signature.get_pck_cert_chain()?;
+    // let pck_cert_chain_data = quote.signature.get_pck_cert_chain()?;
     // let pck_pk_bytes = pck_cert_chain_data.pck_cert_chain[0]
     //     .tbs_certificate
     //     .subject_public_key_info
@@ -295,7 +295,7 @@ pub fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
         bail!("unsupported attestation key type");
     }
 
-    let _attest_key = VerifyingKey::from_sec1_bytes(&key)
+    let attest_key = VerifyingKey::from_sec1_bytes(&key)
         .map_err(|e| anyhow!("failed to parse attest key: {e}"))?;
 
     let header_bytes = quote.header.as_bytes();
@@ -305,9 +305,9 @@ pub fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
     data.extend_from_slice(body_bytes);
 
     let sig = Signature::from_slice(quote.signature.isv_signature)?;
-    // attest_key
-    //     .verify(&data, &sig)
-    //     .context("failed to verify quote signature")?;
+    attest_key
+        .verify(&data, &sig)
+        .context("failed to verify quote signature")?;
 
     Ok(())
 }
