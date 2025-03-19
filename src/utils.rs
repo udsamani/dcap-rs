@@ -141,14 +141,14 @@ pub mod cert_chain_processor {
     /// Process a single certificate at the specified range
     pub fn parse_single_cert(
         pem_data: &[u8],
-        range: (usize, usize),
+        range: &(usize, usize),
     ) -> anyhow::Result<CertificateInner> {
         let (start, end) = range;
-        if start >= pem_data.len() || end > pem_data.len() || start >= end {
+        if *start >= pem_data.len() || *end > pem_data.len() || *start >= *end {
             return Err(anyhow::anyhow!("Invalid certificate range"));
         }
 
-        let cert_slice = &pem_data[start..end];
+        let cert_slice = &pem_data[*start..*end];
 
         // Try PEM format first
         match CertificateInner::from_pem(cert_slice) {
@@ -173,7 +173,7 @@ pub mod cert_chain_processor {
         let mut certificates = Vec::with_capacity(ranges.len());
         for range in ranges {
             // Each certificate is processed in isolation to minimize stack usage
-            let cert = parse_single_cert(pem_data, range)?;
+            let cert = parse_single_cert(pem_data, &range)?;
             certificates.push(cert);
         }
 

@@ -45,8 +45,16 @@ impl<'a> QuoteCertData<'a> {
         }
 
         let cert_data = self.cert_data.strip_suffix(&[0]).unwrap_or(self.cert_data);
-        let pck_cert_chain = cert_chain_processor::load_pem_chain_bpf_friendly(cert_data)
+        let cert_ranges = cert_chain_processor::find_certificate_ranges(cert_data);
+        let first_cert = cert_ranges
+            .iter()
+            .next()
+            .unwrap();
+
+        let first_cert = cert_chain_processor::parse_single_cert(cert_data, &first_cert)
             .context("Failed to parse PCK certificate chain")?;
+
+        let pck_cert_chain = vec![first_cert];
 
         // let pck_extension = pck_cert_chain
         //     .first()
