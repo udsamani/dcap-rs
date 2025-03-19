@@ -35,48 +35,6 @@ pub mod cert_chain {
 }
 
 /// A module for serializing and deserializing CRLs.
-pub mod crl_optional {
-    use std::str::FromStr;
-
-    use pem::Pem;
-    use serde::{Deserialize, Deserializer, Serializer, de, ser};
-    use x509_cert::crl::CertificateList;
-    use x509_cert::der::{Decode, Encode};
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<CertificateList>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let opt_str = Option::<String>::deserialize(deserializer)?;
-
-        match opt_str {
-            Some(s) => {
-                if s.is_empty() {
-                    return Ok(None);
-                }
-
-                let pem = Pem::from_str(&s).map_err(de::Error::custom)?;
-                Ok(Some(
-                    CertificateList::from_der(pem.contents()).map_err(de::Error::custom)?,
-                ))
-            },
-            None => Ok(None),
-        }
-    }
-    pub fn serialize<S: Serializer>(
-        value: &Option<CertificateList>,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error> {
-        if let Some(crl) = value {
-            let pem = Pem::new("X509 CRL", crl.to_der().map_err(ser::Error::custom)?);
-            serializer.serialize_str(&pem.to_string())
-        } else {
-            serializer.serialize_str("")
-        }
-    }
-}
-
-/// A module for serializing and deserializing CRLs.
 pub mod crl {
     use std::str::FromStr;
 
