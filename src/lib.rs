@@ -304,7 +304,7 @@ pub fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
     data.extend_from_slice(header_bytes);
     data.extend_from_slice(body_bytes);
 
-    // let sig = Signature::from_slice(quote.signature.isv_signature)?;
+    let sig = Signature::from_slice(quote.signature.isv_signature)?;
     // attest_key
     //     .verify(&data, &sig)
     //     .context("failed to verify quote signature")?;
