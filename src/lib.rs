@@ -307,7 +307,7 @@ pub fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
 
     let sig = Signature::from_slice(quote.signature.isv_signature)?;
     attest_key
-        .verify_prehash(&data, &sig)
+        .verify_prehash(&data[..32], &sig)
         .context("failed to verify quote signature")?;
 
     Ok(())
