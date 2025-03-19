@@ -183,7 +183,7 @@ fn verify_quote(
 
 /// Verify the quote enclave source and return the TCB status
 /// of the quoting enclave.
-fn verify_quote_enclave_source(
+pub fn verify_quote_enclave_source(
     current_time: SystemTime,
     collateral: &Collateral,
     quote: &Quote,
@@ -265,7 +265,7 @@ fn verify_quote_enclave_source(
 }
 
 /// Verify the quote signatures.
-fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
+pub fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
     let pck_cert_chain_data = quote.signature.get_pck_cert_chain()?;
     let pck_pk_bytes = pck_cert_chain_data.pck_cert_chain[0]
         .tbs_certificate
