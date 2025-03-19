@@ -6,7 +6,8 @@ use std::time::SystemTime;
 
 use anyhow::{Context, anyhow, bail};
 use chrono::{DateTime, Utc};
-use p256::ecdsa::{Signature, VerifyingKey, signature::Verifier};
+use p256::ecdsa::{Signature, VerifyingKey};
+use p256::ecdsa::signature::hazmat::PrehashVerifier;
 use trust_store::{TrustStore, TrustedIdentity};
 use types::{
     VerifiedOutput,
@@ -304,10 +305,10 @@ pub fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
     data.extend_from_slice(header_bytes);
     data.extend_from_slice(body_bytes);
 
-    // let sig = Signature::from_slice(quote.signature.isv_signature)?;
-    // attest_key
-    //     .verify(&data, &sig)
-    //     .context("failed to verify quote signature")?;
+    let sig = Signature::from_slice(quote.signature.isv_signature)?;
+    attest_key
+        .verify_prehash(&data, &sig)
+        .context("failed to verify quote signature")?;
 
     Ok(())
 }
