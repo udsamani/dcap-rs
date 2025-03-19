@@ -305,11 +305,10 @@ pub fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
     data.extend_from_slice(header_bytes);
     data.extend_from_slice(body_bytes);
 
-    let data_32 = &data[..32];
-    println!("data len : {:?}", data_32.len());
+    let data_32 = "udit";
     let sig = Signature::from_slice(quote.signature.isv_signature)?;
     attest_key
-        .verify_prehash(data_32, &sig)
+        .verify_prehash(data_32.as_bytes(), &sig)
         .context("failed to verify quote signature")?;
 
     Ok(())
