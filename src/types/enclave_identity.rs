@@ -49,6 +49,14 @@ impl QuotingEnclaveIdentityAndSignature {
 
         Ok(enclave_identity)
     }
+
+    pub fn get_enclave_identity_bytes(&self) -> Vec<u8> {
+        self.enclave_identity_raw.to_string().into_bytes()
+    }
+
+    pub fn get_signature_bytes(&self) -> Vec<u8> {
+        self.signature.clone()
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]

@@ -69,6 +69,25 @@ impl<'a> QuoteCertData<'a> {
             pck_extension,
         })
     }
+
+    pub fn get_pck_extension(&self) -> anyhow::Result<SgxPckExtension> {
+        let first_cert = cert_chain_processor::load_first_cert_from_pem_data(self.cert_data)
+            .context("Failed to parse PCK certificate chain")?;
+
+        let pck_extension = first_cert.tbs_certificate.extensions
+            .as_ref()
+            .and_then(|extensions| {
+                extensions
+                    .iter()
+                    .find(|ext| SgxPckExtension::is_pck_ext(ext.extn_id.to_string()))
+            })
+            .ok_or_else(|| anyhow!("PCK Certificate does not contain a SGX Extension"))?;
+
+        let pck_extension = SgxPckExtension::from_der(pck_extension.extn_value.as_bytes())
+            .context("PCK Extension")?;
+
+        Ok(pck_extension)
+    }
 }
 
 pub struct QuotingEnclaveReportCertData<'a> {

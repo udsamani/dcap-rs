@@ -64,7 +64,7 @@ impl TcbInfoAndSignature {
     }
 
     pub fn get_tcb_info(&self) -> anyhow::Result<TcbInfo> {
-        serde_json::from_str(self.tcb_info_raw.get())
+        serde_json::from_slice(self.tcb_info_raw.get().as_bytes())
             .map_err(|e| anyhow::anyhow!("tcb info parsing failed: {}", e))
     }
 }
