@@ -49,6 +49,14 @@ impl QuotingEnclaveIdentityAndSignature {
 
         Ok(enclave_identity)
     }
+
+    pub fn get_enclave_identity_bytes(&self) -> Vec<u8> {
+        self.enclave_identity_raw.to_string().into_bytes()
+    }
+
+    pub fn get_signature_bytes(&self) -> Vec<u8> {
+        self.signature.clone()
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -146,6 +154,21 @@ pub enum QeTcbStatus {
     Revoked,
     /// Unknown TCB level status.
     Unspecified,
+}
+
+impl std::fmt::Display for QeTcbStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            QeTcbStatus::UpToDate => write!(f, "UpToDate"),
+            QeTcbStatus::OutOfDate => write!(f, "OutOfDate"),
+            QeTcbStatus::Revoked => write!(f, "Revoked"),
+            QeTcbStatus::ConfigurationNeeded => write!(f, "ConfigurationNeeded"),
+            QeTcbStatus::ConfigurationAndSWHardeningNeeded => write!(f, "ConfigurationAndSWHardeningNeeded"),
+            QeTcbStatus::SWHardeningNeeded => write!(f, "SWHardeningNeeded"),
+            QeTcbStatus::OutOfDateConfigurationNeeded => write!(f, "OutOfDateConfigurationNeeded"),
+            QeTcbStatus::Unspecified => write!(f, "Unspecified"),
+        }
+    }
 }
 
 #[allow(clippy::from_over_into)]

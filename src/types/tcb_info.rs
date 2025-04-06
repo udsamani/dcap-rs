@@ -64,7 +64,7 @@ impl TcbInfoAndSignature {
     }
 
     pub fn get_tcb_info(&self) -> anyhow::Result<TcbInfo> {
-        serde_json::from_str(self.tcb_info_raw.get())
+        serde_json::from_slice(self.tcb_info_raw.get().as_bytes())
             .map_err(|e| anyhow::anyhow!("tcb info parsing failed: {}", e))
     }
 }
@@ -240,6 +240,21 @@ pub enum TcbStatus {
     OutOfDateConfigurationNeeded,
     Revoked,
     Unspecified,
+}
+
+impl std::fmt::Display for TcbStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TcbStatus::UpToDate => write!(f, "UpToDate"),
+            TcbStatus::OutOfDate => write!(f, "OutOfDate"),
+            TcbStatus::ConfigurationNeeded => write!(f, "ConfigurationNeeded"),
+            TcbStatus::SWHardeningNeeded => write!(f, "SWHardeningNeeded"),
+            TcbStatus::ConfigurationAndSWHardeningNeeded => write!(f, "ConfigurationAndSWHardeningNeeded"),
+            TcbStatus::OutOfDateConfigurationNeeded => write!(f, "OutOfDateConfigurationNeeded"),
+            TcbStatus::Revoked => write!(f, "Revoked"),
+            TcbStatus::Unspecified => write!(f, "Unspecified"),
+        }
+    }
 }
 
 /// Contains information identifying a TcbLevel.

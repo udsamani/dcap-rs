@@ -139,7 +139,7 @@ pub mod cert_chain_processor {
     }
 
     /// Process a single certificate at the specified range
-    pub fn parse_single_cert(
+    fn parse_single_cert(
         pem_data: &[u8],
         range: (usize, usize),
     ) -> anyhow::Result<CertificateInner> {
@@ -179,6 +179,16 @@ pub mod cert_chain_processor {
 
         Ok(certificates)
     }
+
+    /// Load first certificate from pem data
+    pub fn load_first_cert_from_pem_data(pem_data: &[u8]) -> anyhow::Result<CertificateInner> {
+        let ranges = find_certificate_ranges(pem_data);
+        if ranges.is_empty() {
+            return Err(anyhow::anyhow!("No certificates found"));
+        }
+        parse_single_cert(pem_data, ranges[0])
+    }
+
 }
 
 pub trait Expireable {

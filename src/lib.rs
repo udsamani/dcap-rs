@@ -38,11 +38,10 @@ pub fn verify_dcap_quote(
 
     // 2. Verify the Quoting Enclave source and all signatures in the Quote.
     let qe_tcb_status = verify_quote(current_time, &collateral, &quote)?;
+
     // 3. Verify the status of Intel SGX TCB described in the chain.
-    let pck_cert_chain = quote.signature.get_pck_cert_chain()?;
-    let pck_extension = &pck_cert_chain.pck_extension;
-    let (mut tcb_status, advisory_ids) =
-        verify_tcb_status(&tcb_info, &pck_cert_chain.pck_extension)?;
+    let pck_extension = quote.signature.get_pck_extension()?;
+    let (mut tcb_status, advisory_ids) = verify_tcb_status(&tcb_info, &pck_extension)?;
 
     let advisory_ids = if advisory_ids.is_empty() {
         None
@@ -69,6 +68,8 @@ pub fn verify_dcap_quote(
         advisory_ids,
     })
 }
+
+
 
 fn verify_integrity(
     current_time: SystemTime,
@@ -188,6 +189,7 @@ pub fn verify_quote_enclave_source(
     collateral: &Collateral,
     quote: &Quote,
 ) -> anyhow::Result<QeTcbStatus> {
+
     // Verify that the enclave identity root is signed by root certificate
     let qe_identity = collateral
         .qe_identity
@@ -314,7 +316,7 @@ pub fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
 
 /// Ensure the latest tcb info is not revoked, and is either up to date or only needs a configuration
 /// change.
-fn verify_tcb_status(
+pub fn verify_tcb_status(
     tcb_info: &TcbInfo,
     pck_extension: &SgxPckExtension,
 ) -> anyhow::Result<(TcbStatus, Vec<String>)> {
