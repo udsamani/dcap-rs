@@ -6,6 +6,8 @@ use p256::ecdsa::VerifyingKey;
 use p256::ecdsa::signature::Verifier;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
+use borsh::{BorshDeserialize, BorshSerialize};
+use crate::utils::borsh_datetime_as_instant;
 
 use super::{quote::{Quote, QuoteBody}, report::Td10ReportBody, sgx_x509::SgxPckExtension};
 
@@ -75,8 +77,9 @@ impl TcbInfoAndSignature {
 /// version is V3. The V3 API includes advisoryIDs and changes the format of
 /// the TcbLevel
 
-#[derive(Deserialize, Serialize, Clone, Debug, Eq, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, Eq, PartialEq, BorshSerialize, BorshDeserialize)]
 #[serde(try_from = "u16")]
+#[borsh(use_discriminant = true)]
 pub(crate) enum TcbInfoVersion {
     V2 = 2,
     V3 = 3,
@@ -93,13 +96,15 @@ impl TryFrom<u16> for TcbInfoVersion {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TcbInfo {
     #[serde(skip_serializing_if = "Option::is_none", rename = "id")]
     id: Option<String>,
     version: TcbInfoVersion,
+    #[borsh(deserialize_with = "borsh_datetime_as_instant::deserialize", serialize_with = "borsh_datetime_as_instant::serialize")]
     pub issue_date: chrono::DateTime<Utc>,
+    #[borsh(deserialize_with = "borsh_datetime_as_instant::deserialize", serialize_with = "borsh_datetime_as_instant::serialize")]
     pub next_update: chrono::DateTime<Utc>,
     #[serde(with = "hex")]
     pub fmspc: [u8; 6],
@@ -220,17 +225,19 @@ impl TcbInfo {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TcbLevel {
     pub tcb: Tcb,
+    #[borsh(deserialize_with = "borsh_datetime_as_instant::deserialize", serialize_with = "borsh_datetime_as_instant::serialize")]
     pub tcb_date: chrono::DateTime<Utc>,
     pub tcb_status: TcbStatus,
     #[serde(rename = "advisoryIDs", skip_serializing_if = "Option::is_none")]
     pub advisory_ids: Option<Vec<String>>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Copy, Deserialize, Serialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Deserialize, Serialize, BorshSerialize, BorshDeserialize)]
+#[borsh(use_discriminant = true)]
 pub enum TcbStatus {
     UpToDate,
     OutOfDate,
@@ -258,8 +265,9 @@ impl std::fmt::Display for TcbStatus {
 }
 
 /// Contains information identifying a TcbLevel.
-#[derive(Deserialize, Serialize, PartialEq, Eq, Clone, Debug)]
+#[derive(Deserialize, Serialize, PartialEq, Eq, Clone, Debug, BorshSerialize, BorshDeserialize)]
 #[serde(untagged)]
+#[borsh(use_discriminant = true)]
 pub enum Tcb {
     V2(TcbV2),
     V3(TcbV3),
@@ -274,7 +282,7 @@ impl Tcb {
     }
 }
 
-#[derive(Deserialize, Serialize, PartialEq, Eq, Clone, Debug)]
+#[derive(Deserialize, Serialize, PartialEq, Eq, Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct TcbV3 {
     sgxtcbcomponents: [TcbComponentV3; 16],
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -282,13 +290,13 @@ pub struct TcbV3 {
     pcesvn: u16,
 }
 
-#[derive(Deserialize, Serialize, PartialEq, Eq, Clone, Debug, Copy)]
+#[derive(Deserialize, Serialize, PartialEq, Eq, Clone, Debug, Copy, BorshSerialize, BorshDeserialize)]
 pub struct TcbComponentV3 {
     svn: u8,
 }
 
 
-#[derive(Deserialize, Serialize, PartialEq, Eq, Clone, Debug)]
+#[derive(Deserialize, Serialize, PartialEq, Eq, Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct TcbV2 {
     sgxtcbcomp01svn: u8,
     sgxtcbcomp02svn: u8,
@@ -349,7 +357,7 @@ impl Tcb {
     }
 }
 
-#[derive(Deserialize, Serialize, PartialEq, Eq, Clone, Debug)]
+#[derive(Deserialize, Serialize, PartialEq, Eq, Clone, Debug, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TdxModule {
     #[serde(with = "hex", rename = "mrsigner")]
@@ -360,7 +368,7 @@ pub struct TdxModule {
     attributes_mask: [u8; 8],
 }
 
-#[derive(Deserialize, Serialize, PartialEq, Eq, Clone, Debug)]
+#[derive(Deserialize, Serialize, PartialEq, Eq, Clone, Debug, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TdxModuleIdentity {
     #[serde(rename = "id")]
@@ -374,10 +382,11 @@ pub struct TdxModuleIdentity {
     tcb_levels: Vec<TdxTcbLevel>,
 }
 
-#[derive(Deserialize, Serialize, PartialEq, Eq, Clone, Debug)]
+#[derive(Deserialize, Serialize, PartialEq, Eq, Clone, Debug, BorshSerialize, BorshDeserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TdxTcbLevel {
     tcb: TcbTdx,
+    #[borsh(deserialize_with = "borsh_datetime_as_instant::deserialize", serialize_with = "borsh_datetime_as_instant::serialize")]
     tcb_date: chrono::DateTime<Utc>,
     tcb_status: TcbStatus,
     #[serde(rename = "advisoryIDs", skip_serializing_if = "Option::is_none")]
@@ -390,7 +399,7 @@ impl TdxTcbLevel {
     }
 }
 
-#[derive(Deserialize, Serialize, PartialEq, Eq, Clone, Debug)]
+#[derive(Deserialize, Serialize, PartialEq, Eq, Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct TcbTdx {
     isvsvn: u8,
 }
@@ -488,8 +497,89 @@ mod tests {
     fn test_parsing_tcb_info_with_tdx_module() {
         let json = include_str!("../../data/tcb_info_v3_with_tdx_module.json");
         let tcb_info_and_signature: TcbInfoAndSignature = serde_json::from_str(json).unwrap();
-        let tcb_info = tcb_info_and_signature.get_tcb_info().unwrap();
+        let original_tcb_info = tcb_info_and_signature.get_tcb_info().unwrap();
+        assert_eq!(original_tcb_info.tdx_module.is_some(), true);
 
-        assert_eq!(tcb_info.tdx_module.is_some(), true);
+        // Serialize and Deserialize the TcbInfo
+        let tcb_info_borsh = borsh::to_vec(&original_tcb_info).unwrap();
+        let tcb_info_deserialized: TcbInfo = borsh::from_slice(&tcb_info_borsh).unwrap();
+
+        // 3. Verify that deserialized matches original
+        assert_eq!(original_tcb_info.version, tcb_info_deserialized.version);
+        assert_eq!(original_tcb_info.issue_date, tcb_info_deserialized.issue_date);
+        assert_eq!(original_tcb_info.next_update, tcb_info_deserialized.next_update);
+        assert_eq!(original_tcb_info.fmspc, tcb_info_deserialized.fmspc);
+        assert_eq!(original_tcb_info.pce_id, tcb_info_deserialized.pce_id);
+        assert_eq!(original_tcb_info.tcb_type, tcb_info_deserialized.tcb_type);
+
+        if let Some(original_tdx) = &original_tcb_info.tdx_module {
+            let deserialized_tdx = tcb_info_deserialized.tdx_module.as_ref().unwrap();
+            assert_eq!(original_tdx.mrsigner, deserialized_tdx.mrsigner);
+            assert_eq!(original_tdx.attributes, deserialized_tdx.attributes);
+            assert_eq!(original_tdx.attributes_mask, deserialized_tdx.attributes_mask);
+        }
+
+        // 5. Test TcbLevels
+        assert_eq!(original_tcb_info.tcb_levels.len(), tcb_info_deserialized.tcb_levels.len());
+
+        // Test the first TcbLevel in detail
+        let original_level = &original_tcb_info.tcb_levels[0];
+        let deserialized_level = &tcb_info_deserialized.tcb_levels[0];
+
+        assert_eq!(original_level.tcb_date, deserialized_level.tcb_date);
+        assert_eq!(original_level.tcb_status, deserialized_level.tcb_status);
+
+        // Test TcbLevel.tcb
+        match (&original_level.tcb, &deserialized_level.tcb) {
+            (Tcb::V2(original_v2), Tcb::V2(deserialized_v2)) => {
+                assert_eq!(original_v2.pcesvn, deserialized_v2.pcesvn);
+                assert_eq!(original_v2.sgxtcbcomp01svn, deserialized_v2.sgxtcbcomp01svn);
+                // Add more component checks as needed
+            },
+            (Tcb::V3(original_v3), Tcb::V3(deserialized_v3)) => {
+                assert_eq!(original_v3.pcesvn, deserialized_v3.pcesvn);
+                assert_eq!(original_v3.sgxtcbcomponents.len(), deserialized_v3.sgxtcbcomponents.len());
+
+                // Check if tdxtcbcomponents exist and match
+                if let Some(original_tdx_comps) = &original_v3.tdxtcbcomponents {
+                    let deserialized_tdx_comps = deserialized_v3.tdxtcbcomponents.as_ref().unwrap();
+                    assert_eq!(original_tdx_comps.len(), deserialized_tdx_comps.len());
+                    for (i, comp) in original_tdx_comps.iter().enumerate() {
+                        assert_eq!(comp.svn, deserialized_tdx_comps[i].svn);
+                    }
+                }
+            },
+            _ => panic!("Tcb variant mismatch after deserialization"),
+        }
+
+        // Test TdxModuleIdentities if present
+        if let Some(original_identities) = &original_tcb_info.tdx_module_identities {
+            let deserialized_identities = tcb_info_deserialized.tdx_module_identities.as_ref().unwrap();
+            assert_eq!(original_identities.len(), deserialized_identities.len());
+
+            // Test the first TdxModuleIdentity
+            let original_identity = &original_identities[0];
+            let deserialized_identity = &deserialized_identities[0];
+
+            assert_eq!(original_identity.id, deserialized_identity.id);
+            assert_eq!(original_identity.mrsigner, deserialized_identity.mrsigner);
+            assert_eq!(original_identity.attributes, deserialized_identity.attributes);
+            assert_eq!(original_identity.attributes_mask, deserialized_identity.attributes_mask);
+
+            // Test TcbLevels in TdxModuleIdentity
+            assert_eq!(
+                original_identity.tcb_levels.len(),
+                deserialized_identity.tcb_levels.len()
+            );
+
+            if !original_identity.tcb_levels.is_empty() {
+                let original_tdx_level = &original_identity.tcb_levels[0];
+                let deserialized_tdx_level = &deserialized_identity.tcb_levels[0];
+
+                assert_eq!(original_tdx_level.tcb.isvsvn, deserialized_tdx_level.tcb.isvsvn);
+                assert_eq!(original_tdx_level.tcb_date, deserialized_tdx_level.tcb_date);
+                assert_eq!(original_tdx_level.tcb_status, deserialized_tdx_level.tcb_status);
+            }
+        }
     }
 }

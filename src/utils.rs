@@ -2,6 +2,38 @@ use std::time::SystemTime;
 
 use x509_cert::{certificate::CertificateInner, crl::CertificateList};
 
+pub mod borsh_datetime_as_instant {
+    use borsh::{BorshDeserialize, BorshSerialize};
+    use chrono::{DateTime, TimeZone, Utc};
+
+    pub fn serialize<W: std::io::Write>(
+        datetime: &DateTime<Utc>,
+        writer: &mut W,
+    ) -> std::io::Result<()> {
+        // Convert DateTime to instant (seconds since UNIX epoch)
+        let secs = datetime.timestamp();
+        let nanos = datetime.timestamp_subsec_nanos();
+
+        // Serialize as i64 (seconds) and u32 (nanos)
+        BorshSerialize::serialize(&secs, writer)?;
+        BorshSerialize::serialize(&nanos, writer)?;
+        Ok(())
+    }
+
+    pub fn deserialize<R: std::io::Read>(reader: &mut R) -> std::io::Result<DateTime<Utc>> {
+        // Deserialize seconds and nanos
+        let secs = i64::deserialize_reader(reader)?;
+        let nanos = u32::deserialize_reader(reader)?;
+
+        // Reconstruct DateTime from seconds and nanos
+        Utc.timestamp_opt(secs, nanos).single()
+            .ok_or_else(|| std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Invalid datetime value"
+            ))
+    }
+}
+
 /// A module for serializing and deserializing certificate chains.
 pub mod cert_chain {
     use serde::{Deserialize, de, ser};
