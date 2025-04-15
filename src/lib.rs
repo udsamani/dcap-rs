@@ -41,7 +41,12 @@ pub fn verify_dcap_quote(
 
     // 3. Verify the status of Intel SGX TCB described in the chain.
     let pck_extension = quote.signature.get_pck_extension()?;
-    let (mut tcb_status, advisory_ids) = verify_tcb_status(&tcb_info, &pck_extension)?;
+    let (sgx_tcb_status, tdx_tcb_status, advisory_ids) = verify_tcb_status(&tcb_info, &pck_extension, &quote)?;
+
+    assert!(
+        sgx_tcb_status != TcbStatus::Revoked || tdx_tcb_status != TcbStatus::Revoked,
+        "FMPSC TCB Revoked"
+    );
 
     let advisory_ids = if advisory_ids.is_empty() {
         None
@@ -50,10 +55,14 @@ pub fn verify_dcap_quote(
     };
 
     // 4. If TDX type then verify the status of TDX Module status and converge and send
+    let mut tcb_status;
     if quote.header.tee_type == TDX_TEE_TYPE {
+        tcb_status = tdx_tcb_status;
         let tdx_module_status =
             tcb_info.verify_tdx_module(quote.body.as_tdx_report_body().unwrap())?;
         tcb_status = TcbInfo::converge_tcb_status_with_tdx_module(tcb_status, tdx_module_status);
+    } else {
+        tcb_status = sgx_tcb_status;
     }
 
     // 5. Converge platform TCB status with QE TCB status
@@ -319,7 +328,8 @@ pub fn verify_quote_signatures(quote: &Quote) -> anyhow::Result<()> {
 pub fn verify_tcb_status(
     tcb_info: &TcbInfo,
     pck_extension: &SgxPckExtension,
-) -> anyhow::Result<(TcbStatus, Vec<String>)> {
+    quote: &Quote,
+) -> anyhow::Result<(TcbStatus, TcbStatus, Vec<String>)> {
     // Make sure the tcb_info matches the enclave's model/PCE version
     if pck_extension.fmspc != tcb_info.fmspc {
         return Err(anyhow::anyhow!(
@@ -337,7 +347,7 @@ pub fn verify_tcb_status(
         ));
     }
 
-    TcbStatus::lookup(pck_extension, tcb_info)
+    TcbStatus::lookup(pck_extension, tcb_info, quote)
 }
 
 #[cfg(test)]
