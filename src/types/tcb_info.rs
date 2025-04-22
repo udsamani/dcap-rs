@@ -228,6 +228,11 @@ impl TcbInfo {
         borsh::from_slice::<TcbInfo>(bytes)
             .map_err(|e| anyhow::anyhow!("Failed to parse TcbInfo: {}", e))
     }
+
+    pub fn to_bytes(&self) -> anyhow::Result<Vec<u8>> {
+        borsh::to_vec(self)
+            .map_err(|e| anyhow::anyhow!("Failed to serialize TcbInfo: {}", e))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
